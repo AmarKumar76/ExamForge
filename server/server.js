@@ -1,15 +1,60 @@
-/**
- * ExamForge API Server Entrypoint Skeleton
- * 
- * NOTE: Architectural placeholder entrypoint.
- * Server startup, MongoDB connection, Redis initialization, and Socket.IO attachment
- * will be implemented in subsequent module implementation phases.
- */
-
 const app = require('./src/app');
+const config = require('./src/config/env');
+const { connectDB, disconnectDB } = require('./src/config/db');
 
-const PORT = process.env.PORT || 5000;
+let server;
+
+const startServer = async () => {
+  try {
+    // 1. Connect MongoDB
+    await connectDB();
+
+    // 2. Start HTTP Server
+    const PORT = config.port;
+    server = app.listen(PORT, '0.0.0.0', () => {
+      if (config.env !== 'test') {
+        console.log(`🚀 ExamForge API Server running in [${config.env}] mode on port ${PORT}`);
+        console.log(`🔗 Health Check: http://localhost:${PORT}/api/v1/health`);
+        console.log(`🔐 Auth Endpoints: http://localhost:${PORT}/api/v1/auth`);
+      }
+    });
+
+    // Handle Unhandled Rejections & Uncaught Exceptions
+    process.on('unhandledRejection', (reason) => {
+      console.error('❌ Unhandled Rejection at:', reason);
+    });
+
+    process.on('uncaughtException', (error) => {
+      console.error('❌ Uncaught Exception thrown:', error);
+      gracefulShutdown('uncaughtException');
+    });
+
+    // Graceful Shutdown Signals
+    process.on('SIGTERM', () => gracefulShutdown('SIGTERM'));
+    process.on('SIGINT', () => gracefulShutdown('SIGINT'));
+
+  } catch (error) {
+    console.error('❌ Failed to start ExamForge API Server:', error);
+    process.exit(1);
+  }
+};
+
+const gracefulShutdown = async (signal) => {
+  console.log(`\n⚠️ ${signal} received. Initiating graceful shutdown...`);
+  if (server) {
+    server.close(async () => {
+      console.log('🛑 HTTP Server closed.');
+      await disconnectDB();
+      process.exit(0);
+    });
+  } else {
+    await disconnectDB();
+    process.exit(0);
+  }
+};
 
 if (process.env.NODE_ENV !== 'test') {
-  console.log(`ExamForge API Server initialized. Port configured: ${PORT}`);
+  startServer();
 }
+
+module.exports = app;
