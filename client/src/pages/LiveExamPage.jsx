@@ -1,109 +1,301 @@
-import React, { useState } from 'react';
-import { liveExamMockData } from '../mockData';
-import { Clock, ShieldCheck, ArrowRight, ArrowLeft, Bookmark } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { useLocation, useNavigate, useSearchParams } from 'react-router-dom';
+import { AppShell } from '../components/layout/AppShell';
 import { Button } from '../components/ui/Button';
-import { useNavigate } from 'react-router-dom';
+import { Badge } from '../components/ui/Badge';
+import { examService } from '../services/examService';
+import {
+  Clock,
+  CheckCircle2,
+  AlertCircle,
+  X,
+  FileText,
+  Send,
+  HelpCircle,
+  RefreshCw,
+} from 'lucide-react';
 
 export const LiveExamPage = () => {
+  const location = useLocation();
   const navigate = useNavigate();
-  const data = liveExamMockData;
-  const [selectedOption, setSelectedOption] = useState(data.question.selectedOption);
+  const [searchParams] = useSearchParams();
 
-  return (
-    <div className="min-h-screen bg-[var(--background)] flex flex-col">
-      {/* Top Header Runner Bar */}
-      <header className="h-16 bg-[var(--surface)] border-b border-[var(--border)] px-6 flex items-center justify-between sticky top-0 z-30">
-        <div>
-          <h2 className="text-base font-bold text-[var(--text-primary)]">{data.examTitle}</h2>
-          <p className="text-xs text-[var(--text-secondary)]">{data.courseCode}</p>
+  const [attempt, setAttempt] = useState(location.state?.attempt || null);
+  const [exam, setExam] = useState(location.state?.exam || null);
+  const [isLoadingSession, setIsLoadingSession] = useState(false);
+
+  const [userAnswers, setUserAnswers] = useState({});
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [error, setError] = useState(null);
+
+  // Remaining time calculation in seconds
+  const [timeLeft, setTimeLeft] = useState((exam?.duration || 60) * 60);
+
+  useEffect(() => {
+    const examIdFromUrl = searchParams.get('examId') || (exam?._id || exam?.id);
+
+    if ((!exam || !attempt) && examIdFromUrl) {
+      const resumeSession = async () => {
+        try {
+          setIsLoadingSession(true);
+          setError(null);
+          const res = await examService.startAttempt(examIdFromUrl);
+          if (res.success && res.data?.attempt) {
+            setAttempt(res.data.attempt);
+            setExam(res.data.exam);
+            const durationMins = res.data.exam.duration || 60;
+            const startedAt = res.data.attempt.startedAt ? new Date(res.data.attempt.startedAt).getTime() : Date.now();
+            const elapsedSeconds = Math.floor((Date.now() - startedAt) / 1000);
+            const remainingSeconds = Math.max(durationMins * 60 - elapsedSeconds, 10);
+            setTimeLeft(remainingSeconds);
+          }
+        } catch (err) {
+          setError(err.message || 'Failed to resume exam session.');
+        } finally {
+          setIsLoadingSession(false);
+        }
+      };
+      resumeSession();
+    }
+  }, [searchParams]);
+
+  useEffect(() => {
+    if (!exam || !attempt) return;
+
+    const timer = setInterval(() => {
+      setTimeLeft((prev) => {
+        if (prev <= 1) {
+          clearInterval(timer);
+          handleAutoSubmit();
+          return 0;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+
+    return () => clearInterval(timer);
+  }, [exam, attempt]);
+
+  useEffect(() => {
+    if (attempt && attempt.answers && Array.isArray(attempt.answers)) {
+      const initialAnswers = {};
+      attempt.answers.forEach(ans => {
+        initialAnswers[ans.questionId] = {
+          selectedOption: ans.selectedOption || '',
+          textAnswer: ans.textAnswer || ''
+        };
+      });
+      setUserAnswers(prev => Object.keys(prev).length === 0 ? initialAnswers : prev);
+    }
+  }, [attempt]);
+
+  const [saveTimeout, setSaveTimeout] = useState(null);
+
+  const saveAnswersToBackend = async (answersObj) => {
+    if (!attempt) return;
+    try {
+      const formattedAnswers = Object.entries(answersObj).map(([qId, val]) => ({
+        questionId: qId,
+        selectedOption: val.selectedOption || '',
+        textAnswer: val.textAnswer || '',
+      }));
+      await examService.saveProgress(attempt.id || attempt._id, formattedAnswers);
+    } catch (err) {
+      console.error('Failed to auto-save answers:', err);
+    }
+  };
+
+  const debouncedSave = (newAnswers) => {
+    if (saveTimeout) clearTimeout(saveTimeout);
+    setSaveTimeout(setTimeout(() => {
+      saveAnswersToBackend(newAnswers);
+    }, 1500));
+  };
+
+  const handleOptionSelect = (qId, option) => {
+    setUserAnswers((prev) => {
+      const updated = { ...prev, [qId]: { ...prev[qId], selectedOption: option } };
+      debouncedSave(updated);
+      return updated;
+    });
+  };
+
+  const handleTextAnswerChange = (qId, text) => {
+    setUserAnswers((prev) => {
+      const updated = { ...prev, [qId]: { ...prev[qId], textAnswer: text } };
+      debouncedSave(updated);
+      return updated;
+    });
+  };
+
+  const handleAutoSubmit = () => {
+    handleSubmit();
+  };
+
+  const handleSubmit = async (e) => {
+    if (e) e.preventDefault();
+    if (!attempt || !exam) return;
+
+    try {
+      setIsSubmitting(true);
+      setError(null);
+
+      const formattedAnswers = Object.entries(userAnswers).map(([qId, val]) => ({
+        questionId: qId,
+        selectedOption: val.selectedOption || '',
+        textAnswer: val.textAnswer || '',
+      }));
+
+      const res = await examService.submitAttempt(attempt.id || attempt._id, formattedAnswers);
+      if (res.success && res.data?.attempt) {
+        navigate('/student/exam/submitted', { state: { attempt: res.data.attempt, exam } });
+      }
+    } catch (err) {
+      setError(err.message || 'Failed to submit exam attempt.');
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const formatTime = (seconds) => {
+    const mins = Math.floor(seconds / 60);
+    const secs = seconds % 60;
+    return `${mins}:${secs < 10 ? '0' : ''}${secs}`;
+  };
+
+  if (isLoadingSession) {
+    return (
+      <AppShell title="Live Examination">
+        <div className="p-12 text-center max-w-md mx-auto space-y-4 bg-[var(--surface)] rounded-2xl border border-[var(--border)] mt-8">
+          <RefreshCw className="w-8 h-8 text-[var(--primary)] animate-spin mx-auto" />
+          <h3 className="text-base font-bold text-[var(--text-primary)]">Initializing Exam Session</h3>
+          <p className="text-xs text-[var(--text-secondary)]">Loading your persisted questions from database...</p>
         </div>
+      </AppShell>
+    );
+  }
 
-        <div className="flex items-center gap-4">
-          <div className="flex items-center gap-2 px-3 py-1.5 bg-red-50 text-red-600 rounded-[var(--radius-md)] border border-red-200 font-bold text-sm">
-            <Clock className="w-4 h-4" />
-            <span>{data.remainingTime}</span>
-          </div>
-
-          <Button variant="danger" size="md" onClick={() => navigate('/student/exam/submitted')}>
-            Submit Exam
+  if (error && (!exam || !attempt)) {
+    return (
+      <AppShell title="Live Examination">
+        <div className="p-12 text-center max-w-md mx-auto space-y-4 bg-[var(--surface)] rounded-2xl border border-[var(--border)] mt-8">
+          <AlertCircle className="w-8 h-8 text-red-500 mx-auto" />
+          <h3 className="text-base font-bold text-[var(--text-primary)]">Exam Session Error</h3>
+          <p className="text-xs text-[var(--text-secondary)]">{error}</p>
+          <Button variant="primary" size="sm" onClick={() => navigate('/student/dashboard')}>
+            Back to Dashboard
           </Button>
         </div>
-      </header>
+      </AppShell>
+    );
+  }
 
-      {/* Main Examination Grid */}
-      <div className="flex-1 p-6 max-w-7xl w-full mx-auto grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
-        {/* Question Palette Sidebar */}
-        <div className="lg:col-span-4 bg-[var(--surface)] border border-[var(--border)] rounded-[var(--radius-lg)] p-5 space-y-4">
-          <h3 className="text-xs font-bold text-[var(--text-secondary)] uppercase tracking-wider">Question Palette</h3>
-          
-          <div className="grid grid-cols-5 gap-2">
-            {data.palette.map((item) => (
-              <button
-                key={item.number}
-                className={`w-9 h-9 rounded-[var(--radius-sm)] text-xs font-bold transition-all ${
-                  item.number === data.currentQuestionIndex
-                    ? 'bg-[var(--primary)] text-white ring-2 ring-offset-1 ring-[var(--primary)]'
-                    : item.status === 'Answered'
-                    ? 'bg-[var(--primary-light)] text-[var(--primary)] border border-[var(--primary-border)]'
-                    : item.status === 'Marked'
-                    ? 'bg-amber-100 text-amber-700 border border-amber-300'
-                    : 'bg-[var(--surface-muted)] text-[var(--text-secondary)] border border-[var(--border)]'
-                }`}
-              >
-                {item.number}
-              </button>
-            ))}
+  const questions = exam?.questionIds || [];
+
+  return (
+    <AppShell title={exam?.title || 'Live Examination'}>
+      <div className="space-y-6 max-w-4xl pb-16">
+        {/* Sticky Exam Banner */}
+        <div className="sticky top-16 z-20 bg-[var(--surface)] p-5 rounded-2xl border border-[var(--border)] shadow-md flex flex-col md:flex-row md:items-center justify-between gap-4">
+          <div>
+            <h1 className="text-lg font-bold text-[var(--text-primary)]">{exam?.title}</h1>
+            <p className="text-xs text-[var(--text-secondary)] mt-0.5">
+              {exam?.courseId?.code} — {exam?.courseId?.name} • Total Questions: {questions.length}
+            </p>
           </div>
 
-          <div className="pt-3 border-t border-[var(--border-subtle)] space-y-1.5 text-xs text-[var(--text-secondary)] font-medium">
-            <div className="flex items-center gap-2"><span className="w-3 h-3 rounded bg-[var(--primary-light)] border border-[var(--primary-border)]" /> Answered</div>
-            <div className="flex items-center gap-2"><span className="w-3 h-3 rounded bg-amber-100 border border-amber-300" /> Marked for Review</div>
-            <div className="flex items-center gap-2"><span className="w-3 h-3 rounded bg-[var(--surface-muted)] border border-[var(--border)]" /> Not Answered</div>
+          <div className="flex items-center gap-4">
+            <div className="flex items-center gap-2 px-3.5 py-1.5 bg-amber-500/10 text-amber-700 dark:text-amber-400 border border-amber-500/20 rounded-xl font-mono text-sm font-bold">
+              <Clock className="w-4 h-4 animate-pulse" />
+              <span>Time Left: {formatTime(timeLeft)}</span>
+            </div>
+            <Button variant="primary" size="sm" icon={Send} loading={isSubmitting} onClick={handleSubmit}>
+              Submit Exam
+            </Button>
           </div>
         </div>
 
-        {/* Active Question Display Card */}
-        <div className="lg:col-span-8 bg-[var(--surface)] border border-[var(--border)] rounded-[var(--radius-lg)] p-6 space-y-6">
-          <div className="flex items-center justify-between border-b border-[var(--border-subtle)] pb-4">
-            <span className="text-xs font-bold text-[var(--primary)]">Question {data.question.number} of {data.totalQuestions}</span>
-            <Button variant="ghost" size="sm" icon={Bookmark}>Mark for Review</Button>
+        {error && (
+          <div className="p-3.5 bg-red-500/10 border border-red-500/20 text-red-600 dark:text-red-400 rounded-xl text-xs font-semibold flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <AlertCircle className="w-4 h-4" />
+              <span>{error}</span>
+            </div>
           </div>
+        )}
 
-          <h3 className="text-base font-bold text-[var(--text-primary)] leading-relaxed">
-            {data.question.text}
-          </h3>
+        {/* Exam Questions List */}
+        <div className="space-y-6">
+          {questions.map((q, idx) => {
+            const qId = q.id || q._id;
+            const currentAns = userAnswers[qId] || {};
 
-          {/* Options */}
-          <div className="space-y-3">
-            {data.question.options.map((opt, i) => {
-              const letter = opt.charAt(0);
-              const isSelected = selectedOption === letter;
-              return (
-                <div
-                  key={i}
-                  onClick={() => setSelectedOption(letter)}
-                  className={`p-4 rounded-[var(--radius-md)] text-xs font-medium border cursor-pointer transition-all flex items-center justify-between ${
-                    isSelected
-                      ? 'bg-[var(--primary-light)] border-[var(--primary)] text-[var(--primary)] shadow-sm'
-                      : 'bg-[var(--background)] border-[var(--border)] text-[var(--text-primary)] hover:border-[var(--primary-border)]'
-                  }`}
-                >
-                  <span>{opt}</span>
-                  <div className={`w-4 h-4 rounded-full border flex items-center justify-center ${isSelected ? 'border-[var(--primary)] bg-[var(--primary)]' : 'border-[var(--border)]'}`}>
-                    {isSelected && <div className="w-1.5 h-1.5 rounded-full bg-white" />}
+            return (
+              <div key={qId} className="bg-[var(--surface)] p-6 rounded-2xl border border-[var(--border)] shadow-xs space-y-4 text-xs">
+                <div className="flex items-start justify-between gap-3 border-b border-[var(--border-subtle)] pb-3">
+                  <div className="flex items-center gap-2">
+                    <span className="w-6 h-6 rounded-full bg-[var(--primary-light)] text-[var(--primary)] flex items-center justify-center font-bold text-xs shrink-0">
+                      {idx + 1}
+                    </span>
+                    <Badge variant="primary">{q.type}</Badge>
+                    <Badge variant="neutral">{q.difficulty}</Badge>
                   </div>
+                  <span className="text-[11px] font-semibold text-[var(--text-secondary)]">Topic: {q.topic || 'General'}</span>
                 </div>
-              );
-            })}
-          </div>
 
-          {/* Bottom Bar */}
-          <div className="pt-4 border-t border-[var(--border-subtle)] flex justify-between">
-            <Button variant="secondary" size="md" icon={ArrowLeft}>Previous</Button>
-            <Button variant="primary" size="md" icon={ArrowRight}>Next Question</Button>
-          </div>
+                <p className="text-sm font-bold text-[var(--text-primary)] leading-relaxed">{q.questionText}</p>
+
+                {/* Question Options */}
+                {(q.type === 'MCQ' || q.type === 'TRUE_FALSE') && (
+                  <div className="space-y-2 pt-2">
+                    {(q.options?.length > 0 ? q.options : ['True', 'False']).map((opt, oIdx) => {
+                      const isSelected = currentAns.selectedOption === opt;
+                      return (
+                        <label
+                          key={oIdx}
+                          className={`p-3.5 rounded-xl border transition-all cursor-pointer flex items-center gap-3 text-xs font-semibold ${
+                            isSelected
+                              ? 'bg-[var(--primary-light)]/30 border-[var(--primary)] text-[var(--primary)]'
+                              : 'bg-[var(--background)] border-[var(--border-subtle)] hover:border-[var(--primary-border)] text-[var(--text-primary)]'
+                          }`}
+                        >
+                          <input
+                            type="radio"
+                            name={`q_${qId}`}
+                            value={opt}
+                            checked={isSelected}
+                            onChange={() => handleOptionSelect(qId, opt)}
+                            className="w-4 h-4 text-[var(--primary)] focus:ring-[var(--primary)]"
+                          />
+                          <span>{opt}</span>
+                        </label>
+                      );
+                    })}
+                  </div>
+                )}
+
+                {q.type === 'SHORT_ANSWER' && (
+                  <div className="pt-2">
+                    <textarea
+                      rows={3}
+                      placeholder="Write your short answer response here..."
+                      value={currentAns.textAnswer || ''}
+                      onChange={(e) => handleTextAnswerChange(qId, e.target.value)}
+                      className="w-full px-3 py-2 bg-[var(--background)] border border-[var(--border)] rounded-xl text-xs text-[var(--text-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--primary)]"
+                    />
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+
+        <div className="flex justify-end pt-4">
+          <Button variant="primary" size="md" icon={Send} loading={isSubmitting} onClick={handleSubmit}>
+            Submit Official Exam
+          </Button>
         </div>
       </div>
-    </div>
+    </AppShell>
   );
 };

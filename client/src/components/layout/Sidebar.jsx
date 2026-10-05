@@ -9,26 +9,26 @@ import {
   Calendar,
   Bell,
   FolderKanban,
-  GraduationCap,
   BarChart3,
   Users,
   Settings,
-  ShieldCheck,
   Building2,
   FileSpreadsheet,
   Layers,
-  ChevronRight
 } from 'lucide-react';
-import { useTheme } from '../../context/ThemeContext';
-import { studentMockData, instructorMockData, adminMockData } from '../../mockData';
+import { useAuth } from '../../context/AuthContext';
+import { UserProfileMenu } from '../ui/UserProfileMenu';
 
 export const Sidebar = () => {
   const location = useLocation();
-  const { activeRole } = useTheme();
+  const { user } = useAuth();
+
+  const role = user?.role || 'STUDENT';
 
   const roleNavMap = {
-    student: [
+    STUDENT: [
       { label: 'Dashboard', icon: LayoutDashboard, path: '/student/dashboard' },
+      { label: 'My Courses', icon: BookOpen, path: '/student/courses' },
       { label: 'My Exams', icon: FileText, path: '/student/exams' },
       { label: 'Results', icon: Award, path: '/student/results' },
       { label: 'AI Preparation', icon: Sparkles, path: '/student/ai-prep', badge: 'AI' },
@@ -36,7 +36,7 @@ export const Sidebar = () => {
       { label: 'Study Plan', icon: BookOpen, path: '/student/study-plan' },
       { label: 'Notifications', icon: Bell, path: '/student/notifications' },
     ],
-    instructor: [
+    INSTRUCTOR: [
       { label: 'Dashboard', icon: LayoutDashboard, path: '/instructor/dashboard' },
       { label: 'Courses', icon: BookOpen, path: '/instructor/courses' },
       { label: 'Question Bank', icon: FolderKanban, path: '/instructor/question-bank' },
@@ -48,7 +48,16 @@ export const Sidebar = () => {
       { label: 'Reports', icon: FileSpreadsheet, path: '/instructor/reports' },
       { label: 'Settings', icon: Settings, path: '/instructor/settings' },
     ],
-    admin: [
+    SUPER_ADMIN: [
+      { label: 'Dashboard', icon: LayoutDashboard, path: '/admin/dashboard' },
+      { label: 'User Management', icon: Users, path: '/admin/users' },
+      { label: 'Institutions', icon: Building2, path: '/admin/institutions' },
+      { label: 'Courses', icon: BookOpen, path: '/admin/courses' },
+      { label: 'Analytics', icon: BarChart3, path: '/admin/analytics' },
+      { label: 'System Logs', icon: Layers, path: '/admin/logs' },
+      { label: 'Settings', icon: Settings, path: '/admin/settings' },
+    ],
+    INSTITUTION_ADMIN: [
       { label: 'Dashboard', icon: LayoutDashboard, path: '/admin/dashboard' },
       { label: 'User Management', icon: Users, path: '/admin/users' },
       { label: 'Institutions', icon: Building2, path: '/admin/institutions' },
@@ -59,13 +68,17 @@ export const Sidebar = () => {
     ],
   };
 
-  const navItems = roleNavMap[activeRole] || roleNavMap.student;
+  const navItems = roleNavMap[role] || roleNavMap.STUDENT;
 
-  const currentUserData = {
-    student: studentMockData,
-    instructor: instructorMockData,
-    admin: adminMockData,
-  }[activeRole] || studentMockData;
+  const formatRoleLabel = (r) => {
+    const roleMap = {
+      STUDENT: 'Student',
+      INSTRUCTOR: 'Instructor',
+      INSTITUTION_ADMIN: 'Institution Admin',
+      SUPER_ADMIN: 'Super Admin',
+    };
+    return roleMap[r] || r;
+  };
 
   return (
     <aside className="w-64 bg-[var(--surface)] border-r border-[var(--border)] flex flex-col h-screen sticky top-0 z-30 select-none">
@@ -79,7 +92,7 @@ export const Sidebar = () => {
             Exam<span className="text-[var(--primary)]">Forge</span>
           </h1>
           <span className="text-[11px] text-[var(--text-secondary)] font-medium capitalize mt-0.5 block">
-            {activeRole} Workspace
+            {formatRoleLabel(role)} Workspace
           </span>
         </div>
       </div>
@@ -88,7 +101,9 @@ export const Sidebar = () => {
       <nav className="flex-1 overflow-y-auto px-3 py-4 space-y-1">
         {navItems.map((item) => {
           const Icon = item.icon;
-          const isActive = location.pathname === item.path || (item.path !== '/' && location.pathname.startsWith(item.path));
+          const isActive =
+            location.pathname === item.path ||
+            (item.path !== '/' && location.pathname.startsWith(`${item.path}/`));
 
           return (
             <Link
@@ -118,17 +133,9 @@ export const Sidebar = () => {
         })}
       </nav>
 
-      {/* User Profile Footer */}
-      <div className="p-3 border-t border-[var(--border-subtle)] bg-[var(--surface-muted)]/50 m-3 rounded-[var(--radius-md)] flex items-center gap-3">
-        <img
-          src={currentUserData.avatar || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&q=80&w=150'}
-          alt={currentUserData.name}
-          className="w-9 h-9 rounded-full object-cover border border-[var(--border)]"
-        />
-        <div className="flex-1 min-w-0">
-          <p className="text-xs font-semibold text-[var(--text-primary)] truncate">{currentUserData.name}</p>
-          <p className="text-[11px] text-[var(--text-secondary)] capitalize truncate">{activeRole}</p>
-        </div>
+      {/* User Profile Footer Menu */}
+      <div className="p-3 border-t border-[var(--border-subtle)]">
+        <UserProfileMenu placement="bottom" />
       </div>
     </aside>
   );

@@ -1,20 +1,41 @@
 import React, { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
-import { Shield, Sparkles, ArrowRight, UserCheck, GraduationCap, School, Lock, Mail, User } from 'lucide-react';
+import { Shield, Sparkles, ArrowRight, GraduationCap, School, Lock, Mail, User, AlertCircle } from 'lucide-react';
 import { Button } from '../components/ui/Button';
 import { ThemeToggle } from '../components/ui/ThemeToggle';
+import { useAuth } from '../context/AuthContext';
 
 export const RegisterPage = () => {
   const navigate = useNavigate();
+  const { register } = useAuth();
+
   const [role, setRole] = useState('student'); // 'student' | 'instructor'
   const [formData, setFormData] = useState({ name: '', email: '', password: '', institution: '' });
+  const [error, setError] = useState('');
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
-    if (role === 'student') {
-      navigate('/student/dashboard');
-    } else {
-      navigate('/instructor/dashboard');
+    setError('');
+    setIsSubmitting(true);
+
+    const backendRole = role === 'student' ? 'STUDENT' : 'INSTRUCTOR';
+
+    try {
+      await register({
+        name: formData.name,
+        email: formData.email,
+        password: formData.password,
+        role: backendRole,
+      });
+
+      navigate('/login', {
+        state: { successMessage: 'Account created successfully! Please sign in to continue.' },
+      });
+    } catch (err) {
+      setError(err.message || 'Registration failed. Please check your details and try again.');
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -49,10 +70,19 @@ export const RegisterPage = () => {
           </p>
         </div>
 
+        {/* Error Alert Box */}
+        {error && (
+          <div className="p-3.5 rounded-xl bg-red-500/10 border border-red-500/30 text-red-600 dark:text-red-400 text-xs font-medium flex items-start gap-2.5 animate-fadeIn">
+            <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
+            <span>{error}</span>
+          </div>
+        )}
+
         {/* Role Selector Tabs */}
         <div className="grid grid-cols-2 gap-2 bg-[var(--surface-muted)] p-1.5 rounded-xl border border-[var(--border-subtle)]">
           <button
             type="button"
+            disabled={isSubmitting}
             onClick={() => setRole('student')}
             className={`flex items-center justify-center gap-2 py-2 text-xs font-bold rounded-lg transition-all ${
               role === 'student'
@@ -65,6 +95,7 @@ export const RegisterPage = () => {
           </button>
           <button
             type="button"
+            disabled={isSubmitting}
             onClick={() => setRole('instructor')}
             className={`flex items-center justify-center gap-2 py-2 text-xs font-bold rounded-lg transition-all ${
               role === 'instructor'
@@ -85,10 +116,11 @@ export const RegisterPage = () => {
             <input
               type="text"
               required
+              disabled={isSubmitting}
               placeholder="e.g. Alex Rivera"
               value={formData.name}
               onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-              className="w-full px-3.5 py-2.5 text-sm rounded-xl border border-[var(--border)] bg-[var(--background)] text-[var(--text-primary)] focus:outline-none focus:border-[var(--primary)] focus:ring-1 focus:ring-[var(--primary)]"
+              className="w-full px-3.5 py-2.5 text-sm rounded-xl border border-[var(--border)] bg-[var(--background)] text-[var(--text-primary)] focus:outline-none focus:border-[var(--primary)] focus:ring-1 focus:ring-[var(--primary)] disabled:opacity-50"
             />
           </div>
 
@@ -99,10 +131,11 @@ export const RegisterPage = () => {
             <input
               type="email"
               required
+              disabled={isSubmitting}
               placeholder="name@university.edu"
               value={formData.email}
               onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-              className="w-full px-3.5 py-2.5 text-sm rounded-xl border border-[var(--border)] bg-[var(--background)] text-[var(--text-primary)] focus:outline-none focus:border-[var(--primary)] focus:ring-1 focus:ring-[var(--primary)]"
+              className="w-full px-3.5 py-2.5 text-sm rounded-xl border border-[var(--border)] bg-[var(--background)] text-[var(--text-primary)] focus:outline-none focus:border-[var(--primary)] focus:ring-1 focus:ring-[var(--primary)] disabled:opacity-50"
             />
           </div>
 
@@ -113,10 +146,11 @@ export const RegisterPage = () => {
             <input
               type="password"
               required
+              disabled={isSubmitting}
               placeholder="••••••••••••"
               value={formData.password}
               onChange={(e) => setFormData({ ...formData, password: e.target.value })}
-              className="w-full px-3.5 py-2.5 text-sm rounded-xl border border-[var(--border)] bg-[var(--background)] text-[var(--text-primary)] focus:outline-none focus:border-[var(--primary)] focus:ring-1 focus:ring-[var(--primary)]"
+              className="w-full px-3.5 py-2.5 text-sm rounded-xl border border-[var(--border)] bg-[var(--background)] text-[var(--text-primary)] focus:outline-none focus:border-[var(--primary)] focus:ring-1 focus:ring-[var(--primary)] disabled:opacity-50"
             />
           </div>
 
@@ -126,15 +160,23 @@ export const RegisterPage = () => {
             </label>
             <input
               type="text"
+              disabled={isSubmitting}
               placeholder="e.g. Stanford University"
               value={formData.institution}
               onChange={(e) => setFormData({ ...formData, institution: e.target.value })}
-              className="w-full px-3.5 py-2.5 text-sm rounded-xl border border-[var(--border)] bg-[var(--background)] text-[var(--text-primary)] focus:outline-none focus:border-[var(--primary)] focus:ring-1 focus:ring-[var(--primary)]"
+              className="w-full px-3.5 py-2.5 text-sm rounded-xl border border-[var(--border)] bg-[var(--background)] text-[var(--text-primary)] focus:outline-none focus:border-[var(--primary)] focus:ring-1 focus:ring-[var(--primary)] disabled:opacity-50"
             />
           </div>
 
-          <Button variant="primary" size="lg" className="w-full justify-center mt-2" icon={ArrowRight}>
-            Register as {role === 'student' ? 'Student' : 'Instructor'}
+          <Button
+            type="submit"
+            variant="primary"
+            size="lg"
+            disabled={isSubmitting}
+            className="w-full justify-center mt-2"
+            icon={ArrowRight}
+          >
+            {isSubmitting ? 'Creating Account...' : `Register as ${role === 'student' ? 'Student' : 'Instructor'}`}
           </Button>
         </form>
 
