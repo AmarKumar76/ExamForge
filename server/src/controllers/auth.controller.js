@@ -22,7 +22,7 @@ const register = async (req, res, next) => {
 
     return res.status(201).json({
       success: true,
-      message: 'Account registered successfully.',
+      message: 'Account registered successfully. Please sign in to continue.',
       data: result,
     });
   } catch (error) {

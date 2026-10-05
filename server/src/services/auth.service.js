@@ -32,16 +32,8 @@ class AuthService {
       status: ACCOUNT_STATUS.ACTIVE,
     });
 
-    // Generate Access Token
-    const token = generateAccessToken({
-      userId: user._id,
-      role: user.role,
-      institutionId: user.institutionId,
-    });
-
     return {
       user: user.toSafeObject(),
-      token,
     };
   }
 

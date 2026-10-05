@@ -14,7 +14,9 @@ describe('Integration Test: Health & Auth APIs', () => {
   afterAll(async () => {
     // Clean up test users created during integration test
     await User.deleteMany({ email: /test.*@example\.com/ });
-    await mongoose.connection.close();
+    if (mongoose.connection.readyState !== 0) {
+      await mongoose.connection.close();
+    }
   });
 
   describe('GET /api/v1/health', () => {
@@ -34,7 +36,7 @@ describe('Integration Test: Health & Auth APIs', () => {
       role: 'STUDENT',
     };
 
-    it('should register a new student successfully', async () => {
+    it('should register a new student successfully without generating a JWT token or authenticating', async () => {
       const res = await request(app)
         .post('/api/v1/auth/register')
         .send(testUser);
@@ -42,8 +44,13 @@ describe('Integration Test: Health & Auth APIs', () => {
       expect(res.statusCode).toEqual(201);
       expect(res.body.success).toBe(true);
       expect(res.body.data.user.email).toEqual(testUser.email.toLowerCase());
-      expect(res.body.data.token).toBeDefined();
+      // Verification: Registration MUST NOT generate or return a JWT token
+      expect(res.body.data.token).toBeUndefined();
       expect(res.body.data.user.passwordHash).toBeUndefined();
+
+      // Verification: Unauthenticated protected request fails prior to explicit login
+      const meRes = await request(app).get('/api/v1/auth/me');
+      expect(meRes.statusCode).toEqual(401);
     });
 
     it('should reject registration with duplicate email', async () => {
@@ -95,10 +102,22 @@ describe('Integration Test: Health & Auth APIs', () => {
     let userToken = '';
 
     beforeAll(async () => {
+      // 1. Register account (does NOT generate token)
       const regRes = await request(app)
         .post('/api/v1/auth/register')
         .send(loginUser);
-      userToken = regRes.body.data.token;
+      expect(regRes.body.data.token).toBeUndefined();
+
+      // 2. Explicitly login to acquire JWT token
+      const loginRes = await request(app)
+        .post('/api/v1/auth/login')
+        .send({
+          email: loginUser.email,
+          password: loginUser.password,
+        });
+      expect(loginRes.statusCode).toEqual(200);
+      expect(loginRes.body.data.token).toBeDefined();
+      userToken = loginRes.body.data.token;
     });
 
     it('should authenticate user with valid credentials', async () => {
