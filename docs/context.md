@@ -90,13 +90,15 @@ Strictly conforming to the SRS specifications, the system utilizes the following
 3. **Course**: `_id`, `institutionId`, `name`, `code`, `instructorIds`, `studentIds`, `status`
 4. **Material**: `_id`, `courseId`, `fileKey`, `fileName`, `version`, `processingStatus`, `metadata`
 5. **Question**: `_id`, `courseId`, `type`, `text`, `options`, `answer`, `explanation`, `topic`, `difficulty`, `sourceRefs`, `status`, `version`
-6. **Exam**: `_id`, `courseId`, `title`, `duration`, `schedule`, `blueprint`, `questionIds`, `settings`, `status`
-7. **Attempt**: `_id`, `examId`, `studentId`, `startedAt`, `submittedAt`, `status`, `answers`, `score`
-8. **IntegrityEvent**: `_id`, `attemptId`, `type`, `timestamp`, `metadata`, `severity`
-9. **SimilarityReport**: `_id`, `attemptId`, `comparedAttemptId`, `questionId`, `score`, `status`
-10. **AIJob**: `_id`, `type`, `inputRef`, `status`, `outputRef`, `model`, `tokens`, `createdAt`
-11. **AuditLog**: `_id`, `actorId`, `action`, `resourceType`, `resourceId`, `metadata`, `timestamp`
-12. **Notification**: `_id`, `userId`, `type`, `title`, `message`, `readAt`, `createdAt`
+6. **Exam**: `_id`, `courseId`, `title`, `duration`, `schedule`, `blueprint`, `questionIds`, `settings`, `assessmentType`, `status`
+7. **Attempt**: `_id`, `examId`, `studentId`, `startedAt`, `submittedAt`, `status`, `answers`, `score`, `assessmentType`, `previousAttemptScore`, `scoreImprovement`
+8. **PracticeAssessment**: `_id`, `studentId`, `sourceExamId`, `sourceAttemptId`, `assessmentType`, `targetTopics`, `targetConcepts`, `difficulty`, `questionTypes`, `questionCount`, `generatedBy`, `questionIds`, `score`, `previousScore`, `improvement`, `status`, `createdAt`
+9. **LearningAnalysis**: `_id`, `studentId`, `examId`, `attemptId`, `weakTopics`, `strongTopics`, `weakConcepts`, `mistakePatterns`, `recommendations`, `generatedAt`
+10. **IntegrityEvent**: `_id`, `attemptId`, `type`, `timestamp`, `metadata`, `severity`
+11. **SimilarityReport**: `_id`, `attemptId`, `comparedAttemptId`, `questionId`, `score`, `status`
+12. **AIJob**: `_id`, `type`, `inputRef`, `status`, `outputRef`, `model`, `tokens`, `createdAt`
+13. **AuditLog**: `_id`, `actorId`, `action`, `resourceType`, `resourceId`, `metadata`, `timestamp`
+14. **Notification**: `_id`, `userId`, `type`, `title`, `message`, `readAt`, `createdAt`
 
 ## 8. API Context
 The platform implements RESTful API routes under `/api`:
@@ -109,6 +111,7 @@ The platform implements RESTful API routes under `/api`:
 - **Student Exam Execution**: `POST /api/exams/:id/attempts`, `PATCH /api/attempts/:id/answers`, `POST /api/attempts/:id/submit`
 - **Results & Analytics**: `GET /api/results/:attemptId`, `GET /api/analytics/exams/:id`
 - **Integrity & Proctoring**: `GET /api/integrity/exams/:id`
+- **Adaptive Practice & Learning**: `GET /api/student/learning-analysis/:attemptId`, `POST /api/student/preparation/generate`, `POST /api/student/practice/generate`, `GET /api/student/practice/history`, `GET /api/student/practice/:id/analysis`
 
 ## 9. WebSocket Context (Socket.IO Events)
 Real-time bidirectional event contracts:
@@ -139,6 +142,7 @@ Real-time bidirectional event contracts:
 - **Validation Rules**: Automated structural checks for complete options, correct answer presence, and answer key consistency before presenting to instructor.
 - **Instructor Override**: Instructor maintains full right to edit, modify score allocations, or override AI-assisted subjective grading suggestions.
 - **Non-Punitive Proctoring**: AI proctoring signals generate objective evidence items for human review; automatic cheating convictions are strictly forbidden.
+- **Grounded Preparation & Practice Separation**: Gemini study guidance must rely on RAG approved course material rather than general knowledge; student-generated practice assessments execute with `assessmentType: PRACTICE` and can NEVER be converted into official published examinations or overwrite instructor exam workflows.
 
 ## 12. Non-Functional Requirements
 - **Performance**: API responses <500ms for standard CRUD; AI pipelines executed asynchronously with real-time status updates.

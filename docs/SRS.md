@@ -82,6 +82,9 @@ Recommend revision topics based on student performance.
 G7
 Support production scale
 Use containerization, Redis, cloud object storage, CI/CD and observability.
+G8
+Deliver adaptive practice
+Provide AI-analyzed performance gaps, Gemini preparation guidance, and student practice assessments.
 
 3. Scope
 3.1 In Scope
@@ -100,6 +103,7 @@ Real-time exam monitoring
 Academic-integrity and plagiarism/similarity signals
 Student and instructor analytics
 AI-generated learning insights
+AI-powered adaptive exam preparation & practice assessment engine
 Reports and exports
 Notifications
 Audit logs
@@ -109,6 +113,7 @@ Docker, CI/CD, AWS deployment and monitoring
 Fully autonomous AI proctoring that declares a student guilty
 AI-generated questions published without instructor approval
 Automated high-stakes grading without instructor override
+Student-generated practice assessments converted into official published exams
 Native mobile apps
 Payment/subscription billing
 Full LMS replacement
@@ -122,7 +127,7 @@ Manage institution users, departments, courses and institution-level reports.
 Instructor
 Create courses, upload materials, generate/review questions, create exams, grade, analyze.
 Student
-Join courses, take exams, view results, analytics and recommendations.
+Join courses, take official exams, generate AI practice assessments, view results, analytics and recommendations.
 
 5. Functional Requirements
 5.1 Authentication & Account Management
@@ -190,6 +195,17 @@ Student-level accuracy and time analysis.
 Learning-gap identification.
 AI-generated study/revision recommendations.
 Exportable reports.
+5.9 AI-Powered Adaptive Exam Preparation & Practice
+Post-official exam gap analysis: Automatically evaluate completed official exams across overall score, question-wise correctness, topic/concept mastery, difficulty levels, and repeated mistake patterns.
+AI Preparation Card on Student Dashboard: Display last official exam performance, weak areas, target score, AI revision summary, and quick action CTAs (Start AI Preparation, Generate Practice Assessment, View Detailed Analysis).
+Gemini-powered preparation guidance: Utilize Gemini and existing RAG document retrieval pipelines to generate personalized study steps, concept summaries, and practice strategies grounded in approved course material.
+Customizable practice assessment generation: Allow candidates to generate tailored practice assessments by specifying topic, concept focus, question count, difficulty level, and question type.
+Execution via existing exam engine: Render and execute practice assessments using the core exam runner (timer, autosave, palette, randomization) with explicit designation as `assessmentType: PRACTICE`.
+Practice result analysis & progress tracking: Provide practice score, topic accuracy, score improvement delta (+X%) compared to previous official attempt, and updated learning status.
+Continuous adaptive learning loop: Enforce an iterative cycle (ASSESS → ANALYZE → PREPARE → PRACTICE → REASSESS) updating student preparation recommendations after each practice attempt.
+Practice history ledger: Persist complete candidate practice history including date, topic, score, delta (+/-%), difficulty, and status indicator.
+Learning gap status indicators: Categorize student concept mastery into performance-based indicators: STRONG, IMPROVING, NEEDS PRACTICE, WEAK.
+Official vs. Practice boundary enforcement: Enforce strict separation ensuring student-generated practice assessments can never enter the official question bank or become official published examinations.
 6. AI/RAG Requirements
 The AI layer will be implemented as a separate Python FastAPI service. LangChain will orchestrate retrieval/generation workflows where useful, Gemini will provide generative reasoning, and Hugging Face models may support embeddings, NLP or vision workloads.
 6.1 RAG Pipeline
@@ -220,6 +236,10 @@ Learning Gap Detection
 Identify weak topics from exam performance.
 Personalized Recommendations
 Recommend revision content and practice questions.
+Adaptive Preparation Guidance
+Analyze official exam performance gaps and generate focused study recommendations using approved RAG course material.
+Practice Assessment Generation
+Generate practice questions and assemble practice papers tailored to student weak areas.
 Integrity Assistance
 Generate similarity/behavior summaries; never make an automatic cheating verdict.
 
@@ -228,6 +248,8 @@ Every generated question must retain source/context metadata where applicable.
 AI content must be reviewable before publication.
 The system must expose confidence/validation indicators where feasible.
 AI must not invent course policy, grading rules or official answers.
+AI must not blindly generate content from external sources when approved course RAG material is available.
+AI must not publish official exams, convert practice assessments to official exams, or override instructor decisions.
 Instructor override must always be available for high-impact grading.
 Proctoring signals are evidence for review, not automatic proof of misconduct.
 7. Examination Engine Requirements
@@ -274,6 +296,10 @@ Topic-wise performance
 Exam history
 Recommended revision topics
 Recommended practice questions
+AI Preparation Card & weak concept breakdown
+Practice assessment score tracking & improvement delta (+X%)
+Learning gap status indicators (STRONG, IMPROVING, NEEDS PRACTICE, WEAK)
+Practice attempt history and progress tracking
 9.2 Instructor Analytics
 Average/highest/lowest score
 Score distribution
@@ -327,7 +353,7 @@ Six feature cards: AI Question Generation, Question Bank, Secure Online Exams, A
 03. Authentication
 Split-screen login; role tabs Student/Instructor/Admin; email/roll number, password, social sign-in if enabled; branded illustration panel.
 04. Student Dashboard
-Sidebar, greeting, performance overview, upcoming exams, completed exams, subject/topic performance and quick links.
+Sidebar, greeting, performance overview, upcoming exams, completed exams, subject/topic performance, AI Preparation card (last score, weak areas, target score, AI recommendation, Start Preparation CTA), practice history quick link, and navigation.
 05. Instructor Dashboard
 Course count, question count, exam count, student count, recent activity, quick actions for Generate Questions/Create Exam/View Analytics.
 06. AI Question Studio
@@ -345,13 +371,15 @@ Timer, question number, navigation palette, mark for review, answer area, previo
 12. Submission Confirmation
 Success state, exam metadata, score availability status, timestamp and dashboard CTA.
 13. Student Result & Analytics
-Score, accuracy, topic-wise bars, recommended topics, report download and answer key if permitted.
+Score, accuracy, topic-wise bars, weak/strong concepts, recommended topics, AI preparation CTA, report download and answer key if permitted.
 14. Instructor Exam Analytics
 Total students, submitted count, average/highest/lowest, score distribution, question analysis and export report.
 15. Proctoring & Integrity Dashboard
 Live students, progress, elapsed time, risk level, event count and review action.
 16. Admin Panel
 System overview, user counts, institution/course management, recent users and system health.
+17. AI Preparation & Practice Studio
+AI Preparation card, weak concept breakdown, Gemini personalized study guide view, custom practice generator form (topic, difficulty, question count, type), practice result score comparison (+X% delta), learning status badge (STRONG, IMPROVING, NEEDS PRACTICE, WEAK), and practice history ledger table.
 
 12. System Architecture
 Recommended logical architecture:
@@ -408,9 +436,13 @@ _id, courseId, fileKey, fileName, version, processingStatus, metadata
 Question
 _id, courseId, type, text, options, answer, explanation, topic, difficulty, sourceRefs, status, version
 Exam
-_id, courseId, title, duration, schedule, blueprint, questionIds, settings, status
+_id, courseId, title, duration, schedule, blueprint, questionIds, settings, assessmentType, status
 Attempt
-_id, examId, studentId, startedAt, submittedAt, status, answers, score
+_id, examId, studentId, startedAt, submittedAt, status, answers, score, assessmentType, previousAttemptScore, scoreImprovement
+PracticeAssessment
+_id, studentId, sourceExamId, sourceAttemptId, assessmentType, targetTopics, targetConcepts, difficulty, questionTypes, questionCount, generatedBy, questionIds, score, previousScore, improvement, status, createdAt
+LearningAnalysis
+_id, studentId, examId, attemptId, weakTopics, strongTopics, weakConcepts, mistakePatterns, recommendations, generatedAt
 IntegrityEvent
 _id, attemptId, type, timestamp, metadata, severity
 SimilarityReport
@@ -480,6 +512,21 @@ Exam analytics
 GET
 /api/integrity/exams/:id
 Integrity dashboard data
+GET
+/api/student/learning-analysis/:attemptId
+Retrieve learning gap analysis
+POST
+/api/student/preparation/generate
+Generate Gemini personalized study guide
+POST
+/api/student/practice/generate
+Generate practice assessment from weak topics
+GET
+/api/student/practice/history
+List student practice history and progress
+GET
+/api/student/practice/:id/analysis
+Get practice performance and score improvement delta
 
 14.1 WebSocket Events
 Event
@@ -602,8 +649,12 @@ Responsive UI tests
 ✓ Integrity signals appear with timestamp and context.
 ✓ Role-restricted endpoints reject unauthorized access.
 ✓ Dark/light theme works without changing layout or component structure.
-✓ UI remains usable across desktop, tablet and mobile breakpoints.
 ✓ Production deployment exposes health/metrics endpoints and operational dashboards.
+✓ Student can view AI Preparation card and weak topic analysis after completing an official exam.
+✓ Gemini generates preparation guidance and practice questions grounded in approved RAG course material.
+✓ Student can attempt a practice assessment executed via the core exam runner marked as PRACTICE.
+✓ Practice result provides performance improvement (+X%) compared to previous attempt and updates learning status (STRONG, IMPROVING, NEEDS PRACTICE, WEAK).
+✓ Student practice assessments remain strictly separate from instructor-published official exams.
 21. MVP vs Advanced Scope
 MVP
 Advanced / Production
@@ -624,12 +675,13 @@ Optional vision-based signals
 Results
 AI learning recommendations
 Basic analytics
-AWS ECS/S3 deployment
+AI-powered adaptive exam preparation & practice engine
 PDF/material upload
-Prometheus/Grafana monitoring
+AWS ECS/S3 deployment
 Gemini-assisted question generation with instructor approval
-CI/CD
+Prometheus/Grafana monitoring
 Dark/light mode
+CI/CD
 
 22. Future Enhancements
 LMS integrations (LTI/API-based)
