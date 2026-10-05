@@ -112,6 +112,10 @@ Institution Admin opens Management Panel
 - Batch roster upload parsing and error handling.
 
 ## 14. Definition of Done
-- Super Admin can manage institutions seamlessly.
-- Institution Admins can manage departments, courses, instructor assignments, and student rosters.
-- Assigned courses appear correctly on Instructor and Student dashboards.
+- [x] COMPLETE: Super Admin can manage institutions seamlessly (Create, List, Update, Add Departments, Archive).
+- [x] COMPLETE: Institution Admins can manage departments, courses, instructor assignments, and student rosters.
+- [x] COMPLETE: Assigned courses appear correctly on Instructor and Student dashboards.
+- [x] COMPLETE: Backend APIs (`/api/v1/institutions` and `/api/v1/courses`) implemented with RBAC and institution-level ownership guards.
+- [x] COMPLETE: Unique course code constraint per institution enforced.
+- [x] COMPLETE: Unit and integration test suites passing cleanly for all roles (Super Admin, Institution Admin, Instructor, Student).
+

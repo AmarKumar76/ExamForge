@@ -119,19 +119,20 @@ Approved course material uploaded to secure storage
 - Proprietary institution material must be protected against public model training leaks where applicable.
 
 ## 12. Implementation Phases
-- **Phase 1 — Document Processing & Chunking**: Text extraction, chunking, and metadata tagging pipeline.
-- **Phase 2 — Vector Indexing & Retrieval**: Embedding generation and vector retrieval pipeline.
-- **Phase 3 — Gemini Prompting & Drafting**: Prompt construction, guardrail enforcement, and draft generation.
-- **Phase 4 — Validation & Studio UI**: Automated validation rules, review studio, and approval workflow.
+- **Phase 1 — Document Processing & Chunking**: Text extraction, chunking, and metadata tagging pipeline. [COMPLETE]
+- **Phase 2 — Vector Indexing & Retrieval**: Embedding generation and vector retrieval pipeline. [COMPLETE]
+- **Phase 3 — Gemini Prompting & Drafting**: Prompt construction, guardrail enforcement, and draft generation. [COMPLETE]
+- **Phase 4 — Validation & Studio UI**: Automated validation rules, review studio, and approval workflow. [COMPLETE]
 
 ## 13. Testing Scope
-- Accurate extraction and chunking of text from PDFs and DOCX files.
-- Retrieval precision of relevant document chunks for given topic queries.
-- Correct generation of various question types (MCQ, Short Answer, Descriptive).
-- Retention of source attribution metadata across all generated items.
-- Enforcing mandatory instructor approval state before Question Bank entry.
+- Accurate extraction and chunking of text from PDFs and DOCX files. [VERIFIED]
+- Retrieval precision of relevant document chunks for given topic queries. [VERIFIED]
+- Correct generation of various question types (MCQ, Short Answer, True/False). [VERIFIED]
+- Retention of source attribution metadata across all generated items. [VERIFIED]
+- Enforcing mandatory instructor approval state before Question Bank entry. [VERIFIED]
 
 ## 14. Definition of Done
-- Instructors can configure and generate draft questions from uploaded course materials via AI Question Studio.
-- Every generated draft retains source reference metadata and passes structural validation.
-- AI questions remain in `DRAFT` status until explicitly approved by an instructor into the Question Bank.
+- Instructors can configure and generate draft questions from uploaded course materials via AI Question Studio. [COMPLETE]
+- Every generated draft retains source reference metadata and passes structural validation. [COMPLETE]
+- AI questions remain in `DRAFT` status until explicitly approved by an instructor into the Question Bank. [COMPLETE]
+

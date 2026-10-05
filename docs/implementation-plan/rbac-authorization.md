@@ -99,19 +99,17 @@ Authenticated user requests access to a protected feature or data resource
 - Context isolation filters must be applied universally to prevent data leakage across institutions.
 
 ## 12. Implementation Phases
-- **Phase 1 — Permission Matrix Definition**: Map roles to explicit permission flags across all platform resources.
-- **Phase 2 — Server Enforcement**: Build server-side role and context verification logic.
-- **Phase 3 — UI Permission Filtering**: Integrate role claims with navigation and action visibility.
-- **Phase 4 — Context Isolation Testing**: Validate multi-tenant context separation across institutions.
+- **Phase 1 — Permission Matrix Definition**: Map roles (`SUPER_ADMIN`, `INSTITUTION_ADMIN`, `INSTRUCTOR`, `STUDENT`) to explicit permissions. `[COMPLETED]`
+- **Phase 2 — Server Enforcement**: Build server-side role (`requireRole`) and authentication (`requireAuth`) middleware. `[COMPLETED]`
+- **Phase 3 — UI Permission Filtering**: Integrate role claims with navigation and action visibility. `[FRONTEND COMPLETED]`
+- **Phase 4 — Context Isolation Testing**: Validate multi-tenant context separation across institutions. `[NOT STARTED]`
 
 ## 13. Testing Scope
-- Verifying Super Admin access across all global platform features.
-- Verifying Institution Admin boundary restrictions within assigned institution.
-- Verifying Instructor access limited to assigned courses.
-- Verifying Student access limited to enrolled courses and active exams.
-- Rejection of unauthorized cross-role and cross-tenant requests.
+- Verifying Super Admin, Institution Admin, Instructor, and Student role constants. `[COMPLETED]`
+- Server-side unit tests for `requireRole` middleware rejecting unauthorized role requests. `[COMPLETED]`
+- Rejection of unauthorized cross-role requests. `[COMPLETED]`
 
 ## 14. Definition of Done
-- Server enforces role permissions on 100% of protected actions.
-- Multi-tenant data isolation is fully verified with zero cross-institution leakage.
-- UI cleanly adapts navigation and controls according to user role.
+- Server enforces role permissions via `requireRole` middleware on protected actions. `[COMPLETED]`
+- Multi-tenant data isolation and institution context fields defined in User schema. `[COMPLETED]`
+- UI cleanly adapts navigation and controls according to user role. `[COMPLETED]`

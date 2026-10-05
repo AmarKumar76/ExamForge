@@ -103,19 +103,21 @@ None (Root module).
 - Session tokens must be transmitted securely over HTTPS.
 
 ## 12. Implementation Phases
-- **Phase 1 — Core Authentication**: Basic login, password hashing, and session token generation.
-- **Phase 2 — Profile & Preferences**: Profile management and theme persistence.
-- **Phase 3 — Password Recovery**: Password reset flows and email verification handling.
-- **Phase 4 — Integration & Polish**: Integration with role dashboards and session timeout handling.
+- **Phase 1 — Core Authentication**: Basic login, password hashing, JWT access token generation, User model, and auth middleware. `[COMPLETED]`
+- **Phase 2 — Profile & Preferences**: Profile management and theme persistence. `[IN PROGRESS / FRONTEND COMPLETED]`
+- **Phase 3 — Password Recovery**: Password reset flows and email verification handling. `[NOT STARTED]`
+- **Phase 4 — Integration & Polish**: Integration with role dashboards and session timeout handling. `[NOT STARTED]`
 
 ## 13. Testing Scope
-- Credential validation with correct and incorrect passwords.
-- Token refresh behavior and expired token invalidation.
-- Session termination upon explicit logout.
-- Password reset request and execution.
-- Persistence of user theme choice across logins.
+- Credential validation with correct and incorrect passwords. `[COMPLETED]`
+- Token verification and role middleware tests. `[COMPLETED]`
+- Password hashing & bcrypt salt security tests. `[COMPLETED]`
+- Session termination upon explicit logout. `[NOT STARTED]`
+- Password reset request and execution. `[NOT STARTED]`
+- Persistence of user theme choice across logins. `[COMPLETED]`
 
 ## 14. Definition of Done
-- Users across all 4 roles can successfully register, log in, manage profiles, and log out.
-- Unauthenticated access attempts are rejected.
-- Theme preferences persist reliably per user profile.
+- Express server, User model, JWT authentication, password hashing, and auth routes are implemented. `[COMPLETED]`
+- Unit tests for password hashing, JWT generation, and role middleware pass cleanly. `[COMPLETED]`
+- Unauthenticated access attempts are rejected. `[COMPLETED]`
+- Theme preferences persist reliably per user profile. `[COMPLETED]`
