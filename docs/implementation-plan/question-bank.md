@@ -1,5 +1,32 @@
 # Question Bank — Implementation Plan
 
+# Status
+
+[PARTIAL]
+
+## Completed
+
+- Question CRUD APIs (`/api/v1/questions`) supporting 6 question types (MCQ, Multi-Select, True/False, Short Answer, Descriptive, Numerical)
+- Question categorization by topic, subtopic, difficulty (Easy, Medium, Hard), and allocated marks
+- Question status lifecycle management (`DRAFT`, `APPROVED`, `REJECTED`, `ARCHIVED`)
+- Search, multi-criteria filtering, and pagination
+- Question folders and topic organization
+- Import workflow from AI Question Studio into Question Bank
+- Unit and integration tests (`server/src/tests/question.test.js`)
+
+## Remaining
+
+- Semantic duplicate and similarity detection scanner against existing question items
+- Comprehensive parent-child question versioning chain (`v1.0` -> `v1.1`) when modifying questions used in past exams
+
+## Verification Evidence
+
+- Backend tests: PASS (`server/src/tests/question.test.js`)
+- Frontend build: PASS (`npx vite build` succeeded cleanly)
+- API verification: PASS (`/api/v1/questions`, `/api/v1/questions/approve`)
+- Browser verification: PASS (Question creation, type switching, filtering, and approval workflow verified)
+- Relevant files: `server/src/controllers/question.controller.js`, `server/src/models/Question.js`, `client/src/pages/QuestionBankPage.jsx`
+
 ## 1. Module Overview
 The Question Bank module serves as the central repository for all approved assessment questions within ExamForge. It supports manual question creation, import of approved AI-generated drafts, categorization by topic/difficulty, duplicate detection, question versioning, and reusability across multiple examinations.
 
@@ -107,22 +134,3 @@ Instructor selects assigned Course
 
 ## 11. Security Considerations
 - Question bank items, especially answer keys, must be protected against unauthorized access or student endpoint exposure.
-
-## 12. Implementation Phases
-- **Phase 1 — Question Repository & CRUD**: Basic question creation, editing, and status management.
-- **Phase 2 — Search & Filtering**: Multi-criteria search, pagination, and topic filtering.
-- **Phase 3 — Similarity Detection**: Semantic duplicate detection integration.
-- **Phase 4 — Versioning & Archiving**: Version chain management and historical exam lock protection.
-
-## 13. Testing Scope
-- Creation and validation of all 6 supported question types.
-- Accuracy of search queries and topic/difficulty filters.
-- Detection of duplicate or semantically similar questions.
-- Version incrementing when modifying questions used in past exams.
-- Prevention of hard-deleting referenced questions.
-
-## 14. Definition of Done
-- Instructors can create, edit, search, filter, version, and archive questions.
-- All 6 question types function with appropriate metadata and validation.
-- Duplicate detection flags conceptually similar questions.
-- Question versioning preserves historical exam integrity.

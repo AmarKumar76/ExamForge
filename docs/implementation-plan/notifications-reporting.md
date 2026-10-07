@@ -1,5 +1,29 @@
 # Notifications & Reporting — Implementation Plan
 
+# Status
+
+[PARTIAL]
+
+## Completed
+
+- In-app notification center UI with unread badge counter and mark-as-read toggles
+- System notifications for exam schedules, submission confirmations, result publishing, and proctoring flags
+- Report preview UI for exam summaries and student performance
+- Integration tests (`server/src/tests/notification.test.js`)
+
+## Remaining
+
+- Binary export file generation for gradebooks and transcripts (CSV, XLSX, PDF downloadable file formats)
+- SMTP/Nodemailer transactional email delivery pipeline for password resets and exam alerts
+
+## Verification Evidence
+
+- Backend tests: PASS (`server/src/tests/notification.test.js`)
+- Frontend build: PASS (`npx vite build` succeeded cleanly)
+- API verification: PASS (`/api/v1/notifications`, `/api/v1/notifications/:id/read`)
+- Browser verification: PASS (Header notification bell, unread badge count, and notification items verified)
+- Relevant files: `server/src/controllers/notification.controller.js`, `server/src/models/Notification.js`, `client/src/components/NotificationCenter.jsx`
+
 ## 1. Module Overview
 The Notifications & Reporting module manages multi-channel user alerts and formal data exports across ExamForge. It provides real-time in-app notifications and email alerts for exam schedules, submission confirmations, result publications, high-severity proctoring warnings, and AI job statuses. Additionally, it generates downloadable reports (CSV, XLSX, PDF formats) for exam results, class gradebooks, and summary analytics.
 

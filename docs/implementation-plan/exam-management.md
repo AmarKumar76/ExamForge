@@ -1,5 +1,31 @@
 # Exam Management — Implementation Plan
 
+# Status
+
+[COMPLETED]
+
+## Completed
+
+- Exam setup wizard and configuration (`/api/v1/exams`)
+- Scheduling controls (Start Date/Time, End Date/Time, Duration, Attempts)
+- Manual question selection picker from approved Question Bank items
+- Smart Blueprint generation with difficulty sliders and topic coverage percentage distribution
+- Security flags configuration (Randomize questions, Randomize options, Fullscreen mandatory, Proctoring enabled)
+- Exam preview studio and publishing state engine (`DRAFT` → `PUBLISHED` → `ACTIVE` → `CLOSED`)
+- Integration tests (`server/src/tests/exam.test.js`)
+
+## Remaining
+
+- None (All core SRS exam management requirements are fully implemented and verified)
+
+## Verification Evidence
+
+- Backend tests: PASS (`server/src/tests/exam.test.js`)
+- Frontend build: PASS (`npx vite build` succeeded cleanly)
+- API verification: PASS (`/api/v1/exams`, `/api/v1/exams/:id/publish`)
+- Browser verification: PASS (Exam creation, blueprint slider distribution, preview, and publishing verified)
+- Relevant files: `server/src/controllers/exam.controller.js`, `server/src/models/Exam.js`, `client/src/pages/ExamManagementPage.jsx`
+
 ## 1. Module Overview
 The Exam Management module allows instructors to construct, configure, schedule, blueprint, preview, and publish structured examinations. It provides flexible question selection methods—either manual picking from the Question Bank or automated Smart Blueprint generation based on topic and difficulty rules—while setting strict schedule boundaries, attempt limits, marking schemes, and delivery settings.
 

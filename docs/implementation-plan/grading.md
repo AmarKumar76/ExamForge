@@ -1,5 +1,29 @@
 # Grading & Evaluation — Implementation Plan
 
+# Status
+
+[PARTIAL]
+
+## Completed
+
+- Instant automated objective grading for MCQ, Multi-Select, True/False, and Numerical question types upon attempt submission
+- Configurable positive marking and negative marking penalty deduction calculations
+- Instructor manual subjective score override and feedback entry interface
+- Score finalization, percentage calculation, and result release workflow (`/api/v1/grading/:attemptId/publish`)
+- Integration tests (`server/src/tests/grading.test.js`)
+
+## Remaining
+
+- AI rubric-assisted subjective evaluation generating draft scores and feedback suggestions for Short Answer and Descriptive questions
+
+## Verification Evidence
+
+- Backend tests: PASS (`server/src/tests/grading.test.js`)
+- Frontend build: PASS (`npx vite build` succeeded cleanly)
+- API verification: PASS (`/api/v1/grading/submit-grades`, `/api/v1/grading/:attemptId/publish`)
+- Browser verification: PASS (Objective auto-grading, instructor score override, and result release verified)
+- Relevant files: `server/src/controllers/grading.controller.js`, `server/src/services/grading.service.js`, `client/src/pages/GradingPage.jsx`
+
 ## 1. Module Overview
 The Grading & Evaluation module processes assessment attempts to calculate student scores, apply marking rules, perform automated objective grading, provide AI-assisted rubric evaluation for subjective questions, enable instructor score overrides, and finalize results for release.
 

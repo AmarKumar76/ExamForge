@@ -1,5 +1,31 @@
 # AI/RAG Question Generation — Implementation Plan
 
+# Status
+
+[COMPLETED]
+
+## Completed
+
+- Material text extraction, chunking, and embedding pipeline (`rag.service.js`)
+- Vector retrieval matching document chunks to instructor topic queries
+- Gemini integration generating 6 question types (MCQ, Multi-Select, True/False, Short Answer, Descriptive, Numerical)
+- Source reference attribution attached to generated questions (file name, page number, chunk ID)
+- Structural correctness validation and option schema verification
+- Human-in-the-loop AI Question Studio for instructor review, edit, approve, and reject operations (`AIQuestionStudioPage.jsx`)
+- Integration tests (`server/src/tests/rag.test.js`)
+
+## Remaining
+
+- None (All core SRS AI/RAG question generation requirements are fully implemented and verified)
+
+## Verification Evidence
+
+- Backend tests: PASS (`server/src/tests/rag.test.js`)
+- Frontend build: PASS (`npx vite build` succeeded cleanly)
+- API verification: PASS (`/api/v1/ai/generate-questions`, `/api/v1/ai/rag/status`)
+- Browser verification: PASS (AI Question Studio generation, source reference display, and draft approval verified)
+- Relevant files: `server/src/services/rag.service.js`, `server/src/services/gemini.service.js`, `client/src/pages/AIQuestionStudioPage.jsx`
+
 ## 1. Module Overview
 The AI/RAG Question Generation module provides intelligent, context-grounded assessment item drafting from instructor-approved course materials. Using Retrieval-Augmented Generation (RAG), the module extracts text, chunks content with metadata, indexes vectors, retrieves relevant material, and uses generative AI to draft questions while maintaining a strict "Human-in-the-Loop" approval workflow.
 
@@ -117,22 +143,4 @@ Approved course material uploaded to secure storage
 ## 11. Security Considerations
 - Course material content sent to AI models must be transmitted over encrypted connections.
 - Proprietary institution material must be protected against public model training leaks where applicable.
-
-## 12. Implementation Phases
-- **Phase 1 — Document Processing & Chunking**: Text extraction, chunking, and metadata tagging pipeline. [COMPLETE]
-- **Phase 2 — Vector Indexing & Retrieval**: Embedding generation and vector retrieval pipeline. [COMPLETE]
-- **Phase 3 — Gemini Prompting & Drafting**: Prompt construction, guardrail enforcement, and draft generation. [COMPLETE]
-- **Phase 4 — Validation & Studio UI**: Automated validation rules, review studio, and approval workflow. [COMPLETE]
-
-## 13. Testing Scope
-- Accurate extraction and chunking of text from PDFs and DOCX files. [VERIFIED]
-- Retrieval precision of relevant document chunks for given topic queries. [VERIFIED]
-- Correct generation of various question types (MCQ, Short Answer, True/False). [VERIFIED]
-- Retention of source attribution metadata across all generated items. [VERIFIED]
-- Enforcing mandatory instructor approval state before Question Bank entry. [VERIFIED]
-
-## 14. Definition of Done
-- Instructors can configure and generate draft questions from uploaded course materials via AI Question Studio. [COMPLETE]
-- Every generated draft retains source reference metadata and passes structural validation. [COMPLETE]
-- AI questions remain in `DRAFT` status until explicitly approved by an instructor into the Question Bank. [COMPLETE]
 

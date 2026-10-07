@@ -1,5 +1,30 @@
 # Analytics — Implementation Plan
 
+# Status
+
+[PARTIAL]
+
+## Completed
+
+- Student performance result view (`/api/v1/analytics/student/:attemptId`) calculating score, percentage, correct/incorrect counts, and topic accuracy
+- Instructor exam analytics (`/api/v1/analytics/exam/:examId`) computing class average, highest score, lowest score, and score distribution histograms
+- Admin platform metrics (`/api/v1/analytics/admin/overview`) providing active user, course, and exam submission counts
+- Interactive UI dashboard with score distribution charts (`InstructorAnalyticsPage.jsx`)
+- Integration tests (`server/src/tests/analytics.test.js`)
+
+## Remaining
+
+- Granular question-level time-spent analytics (measuring average seconds spent per question)
+- Cohort-level automated AI insights summary text card
+
+## Verification Evidence
+
+- Backend tests: PASS (`server/src/tests/analytics.test.js`)
+- Frontend build: PASS (`npx vite build` succeeded cleanly)
+- API verification: PASS (`/api/v1/analytics/student/:attemptId`, `/api/v1/analytics/exam/:examId`, `/api/v1/analytics/admin/overview`)
+- Browser verification: PASS (Instructor exam average, score histograms, and student topic performance breakdown verified)
+- Relevant files: `server/src/controllers/analytics.controller.js`, `client/src/pages/InstructorAnalyticsPage.jsx`, `client/src/pages/ResultPage.jsx`
+
 ## 1. Module Overview
 The Analytics module delivers comprehensive data intelligence and performance visualizations across ExamForge. It provides multi-tiered insights: candidate-level reports detailing accuracy, topic mastery, and time usage for Students; aggregated performance distributions, question discrimination metrics, topic weakness identification, and AI insights for Instructors; and institutional compliance metrics for Administrators.
 

@@ -1,5 +1,30 @@
 # Audit Logs — Implementation Plan
 
+# Status
+
+[COMPLETED]
+
+## Completed
+
+- Automated audit log recording for sensitive platform actions (WHO → DID WHAT → RESOURCE → WHEN)
+- Audit log model (`AuditLog.js`) capturing actor ID, role, action type, resource ID, IP address, and timestamp
+- Interceptors across authentication, role changes, exam publishing, grade overrides, and proctoring reviews
+- Admin Audit Log Viewer UI with search, date range filtering, and metadata drawer (`AuditLogViewerPage.jsx`)
+- Restricted access control ensuring only Super Admins and Institution Admins can inspect audit trails
+- Integration tests (`server/src/tests/audit.test.js`)
+
+## Remaining
+
+- None (All core SRS audit logging requirements are fully implemented and verified)
+
+## Verification Evidence
+
+- Backend tests: PASS (`server/src/tests/audit.test.js`)
+- Frontend build: PASS (`npx vite build` succeeded cleanly)
+- API verification: PASS (`/api/v1/audit-logs`)
+- Browser verification: PASS (Admin audit log table, action filtering, actor search, and detail modal verified)
+- Relevant files: `server/src/services/audit.service.js`, `server/src/models/AuditLog.js`, `client/src/pages/AuditLogViewerPage.jsx`
+
 ## 1. Module Overview
 The Audit Logs module provides an immutable, security-compliant activity logging pipeline for ExamForge. It automatically captures, records, and catalogs all sensitive, administrative, and high-impact system actions—including authentication events, permission alterations, exam publications, grade overrides, material deletions, and proctoring review decisions—ensuring complete accountability, regulatory compliance, and security traceability.
 

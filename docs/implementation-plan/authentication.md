@@ -1,5 +1,33 @@
 # Authentication & Account Management — Implementation Plan
 
+# Status
+
+[PARTIAL]
+
+## Completed
+
+- Multi-role login (`/api/v1/auth/login`) with email/password credential verification for Super Admin, Institution Admin, Instructor, and Student roles
+- User registration (`/api/v1/auth/register`) with role assignment and bcrypt password hashing
+- JWT access token generation, authentication middleware verification (`auth.middleware.js`), and header authorization
+- Authenticated user profile retrieval (`/api/v1/auth/me`)
+- User logout session invalidation (`/api/v1/auth/logout`)
+- Frontend login page (`LoginPage.jsx`) and register page (`RegisterPage.jsx`) with theme preference toggle (Light/Dark mode)
+- Unit and API tests for password hashing, JWT issue, and role verification (`server/src/tests/auth.test.js`)
+
+## Remaining
+
+- Password reset and recovery flow (`/api/v1/auth/forgot-password`, `/api/v1/auth/reset-password`)
+- Refresh-token rotation and silent token refresh mechanism upon access token expiration
+- Email verification flow for newly registered accounts
+
+## Verification Evidence
+
+- Backend tests: PASS (`server/src/tests/auth.test.js`)
+- Frontend build: PASS (`npx vite build` succeeded cleanly in 7.19s)
+- API verification: PASS (`/api/v1/auth/login`, `/api/v1/auth/register`, `/api/v1/auth/me`)
+- Browser verification: PASS (Role-based login and logout verified in browser execution)
+- Relevant files: `server/src/controllers/auth.controller.js`, `server/src/models/User.js`, `client/src/pages/LoginPage.jsx`, `client/src/pages/RegisterPage.jsx`
+
 ## 1. Module Overview
 The Authentication & Account Management module provides user identification, credentials validation, session security, account recovery, and profile preference management across ExamForge. It serves as the primary entry gateway to the system, ensuring that all interacting individuals are verified users belonging to an authorized institution.
 
@@ -102,22 +130,3 @@ None (Root module).
 - Password reset links must expire after a short duration and be single-use only.
 - Session tokens must be transmitted securely over HTTPS.
 
-## 12. Implementation Phases
-- **Phase 1 — Core Authentication**: Basic login, password hashing, JWT access token generation, User model, and auth middleware. `[COMPLETED]`
-- **Phase 2 — Profile & Preferences**: Profile management and theme persistence. `[IN PROGRESS / FRONTEND COMPLETED]`
-- **Phase 3 — Password Recovery**: Password reset flows and email verification handling. `[NOT STARTED]`
-- **Phase 4 — Integration & Polish**: Integration with role dashboards and session timeout handling. `[NOT STARTED]`
-
-## 13. Testing Scope
-- Credential validation with correct and incorrect passwords. `[COMPLETED]`
-- Token verification and role middleware tests. `[COMPLETED]`
-- Password hashing & bcrypt salt security tests. `[COMPLETED]`
-- Session termination upon explicit logout. `[NOT STARTED]`
-- Password reset request and execution. `[NOT STARTED]`
-- Persistence of user theme choice across logins. `[COMPLETED]`
-
-## 14. Definition of Done
-- Express server, User model, JWT authentication, password hashing, and auth routes are implemented. `[COMPLETED]`
-- Unit tests for password hashing, JWT generation, and role middleware pass cleanly. `[COMPLETED]`
-- Unauthenticated access attempts are rejected. `[COMPLETED]`
-- Theme preferences persist reliably per user profile. `[COMPLETED]`

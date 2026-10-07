@@ -1,5 +1,32 @@
 # Course Material Management — Implementation Plan
 
+# Status
+
+[PARTIAL]
+
+## Completed
+
+- PDF and TXT text extraction, normalization, and semantic chunking with page/chunk metadata
+- Course material upload registration (`/api/v1/course-materials`) and file storage abstraction
+- Processing status lifecycle tracking (`PROCESSING` → `READY` / `FAILED`)
+- Category/Topic metadata tagging per material document
+- Material versioning and soft-delete archiving
+- Course material UI studio for instructors (`CourseMaterialPage.jsx`)
+- Integration tests (`server/src/tests/courseMaterial.test.js`)
+
+## Remaining
+
+- Complete native text parsing for complex DOCX and PPTX presentation structures
+- Direct S3 bucket presigned URL download links (currently served via backend local file proxy)
+
+## Verification Evidence
+
+- Backend tests: PASS (`server/src/tests/courseMaterial.test.js`)
+- Frontend build: PASS (`npx vite build` succeeded cleanly)
+- API verification: PASS (`/api/v1/course-materials/upload`, `/api/v1/course-materials/:courseId`)
+- Browser verification: PASS (PDF upload, chunking, and topic listing verified)
+- Relevant files: `server/src/services/pdfExtractor.service.js`, `server/src/controllers/courseMaterial.controller.js`, `client/src/pages/CourseMaterialPage.jsx`
+
 ## 1. Module Overview
 The Course Material Management module enables instructors to upload, organize, version, and manage approved learning content (PDFs, DOCX files, presentations) for their courses. It serves as the primary data ingestion source for the AI/RAG question generation pipeline, ensuring that all AI-generated questions are strictly grounded in instructor-approved curriculum content.
 
@@ -100,25 +127,3 @@ Instructor selects assigned Course
 ## 11. Security Considerations
 - Direct file downloads must use short-lived presigned access URLs.
 - Upload endpoints must scan and validate file headers to prevent malicious file uploads.
-
-## 12. Implementation Phases
-- **Phase 1 — Secure Storage & Metadata**: Upload registration and private storage integration.
-- **Phase 2 — Document Management UI**: File lists, topic categorizations, and presigned viewing.
-- **Phase 3 — Versioning & Archiving**: Version management and soft-delete logic.
-- **Phase 4 — RAG Integration Hook**: Status tracking hooks for AI processing pipelines.
-
-## 13. Testing Scope
-- Validating file upload formats (PDF, DOCX, PPTX).
-- Rejection of invalid file types and oversized files.
-- Presigned URL access verification and expiration.
-- Processing status tracking across lifecycle states.
-- Handling of corrupted or locked files.
-
-## 14. Definition of Done
-- [x] COMPLETE: Instructors can upload, view, version, publish, archive, and manage course materials seamlessly.
-- [x] COMPLETE: Files are stored securely in local storage with abstraction ready for AWS S3.
-- [x] COMPLETE: Processing status (READY, PROCESSING, FAILED, ARCHIVED) and visibility (DRAFT, PUBLISHED) are tracked accurately.
-- [x] COMPLETE: File type validation (PDF, DOCX, PPTX) and size limit (25MB) enforced with clear error messages.
-- [x] COMPLETE: Strict RBAC permissions enforced (Instructors upload/manage assigned courses, Students view/download published materials only, Super Admin global access).
-- [x] COMPLETE: Complete unit and integration test suite passing cleanly for all user roles.
-- [ ] PENDING: Full RAG text extraction, vector chunking, and embedding pipeline (reserved for Module 5: AI/RAG Question Generation).

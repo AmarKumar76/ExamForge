@@ -1,5 +1,32 @@
 # AI-Powered Adaptive Exam Preparation & Practice — Implementation Plan
 
+# Status
+
+[COMPLETED]
+
+## Completed
+
+- Result gating requiring a published official exam result before generating AI preparation guidance
+- Performance & Learning Analysis engine (`aiPreparation.service.js`) calculating strong vs weak topics and accuracy rates from real MongoDB attempt data
+- Gemini-powered RAG weak topic study guide generation grounded in uploaded course material
+- AI practice assessment generation creating targeted practice papers with `assessmentType: PRACTICE`
+- Execution of practice assessments using the core test runner
+- Practice score evaluation, score delta calculation (+X% comparison against source official attempt), and topic mastery status updates (`STRONG`, `IMPROVING`, `NEEDS PRACTICE`, `WEAK`)
+- Compact slide-out `AIStudyTutor` assistant providing interactive AI concept explanations
+- Integration test suite (`scratch/testAIPreparation.js`) passing 100%
+
+## Remaining
+
+- None (All core SRS AI adaptive exam preparation requirements are fully implemented and verified)
+
+## Verification Evidence
+
+- Backend tests: PASS (`node scratch/testAIPreparation.js` passed 100%)
+- Frontend build: PASS (`npx vite build` succeeded cleanly)
+- API verification: PASS (`/api/v1/ai-prep/analysis/:attemptId`, `/api/v1/ai-prep/generate-practice`, `/api/v1/ai-prep/tutor-chat`)
+- Browser verification: PASS (Published result gating, RAG study guide, practice paper generation, score delta calculation, and AI tutor verified)
+- Relevant files: `server/src/services/aiPreparation.service.js`, `server/src/routes/aiPreparation.routes.js`, `client/src/pages/AIPreparationViewPage.jsx`, `client/src/components/AIStudyTutor.jsx`
+
 ## 1. Module Overview
 The AI-Powered Adaptive Exam Preparation & Practice module provides a student-centric learning loop that connects official examination performance with intelligent self-preparation. Following an official exam attempt, the module analyzes learning gaps, generates Gemini-assisted revision recommendations grounded in approved RAG course material, allows candidates to generate custom practice assessments, executes practice attempts via the existing test runner, and tracks performance improvements (+X% score delta) over time.
 

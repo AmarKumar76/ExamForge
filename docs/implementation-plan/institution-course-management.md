@@ -1,5 +1,31 @@
 # Institution & Course Management — Implementation Plan
 
+# Status
+
+[COMPLETED]
+
+## Completed
+
+- Super Admin institution CRUD operations (`/api/v1/institutions`)
+- Department management and course creation (`/api/v1/courses`)
+- Instructor assignment to courses and student course enrollment
+- Unique course code constraint per institution
+- Active vs Archived status toggles for institutions and courses
+- Role dashboard integration showing assigned courses for instructors and enrolled courses for students
+- Integration tests (`server/src/tests/course.test.js`)
+
+## Remaining
+
+- None (All core SRS institution and course management requirements are fully implemented and verified)
+
+## Verification Evidence
+
+- Backend tests: PASS (`server/src/tests/course.test.js`)
+- Frontend build: PASS (`npx vite build` succeeded cleanly)
+- API verification: PASS (`/api/v1/institutions`, `/api/v1/courses`)
+- Browser verification: PASS (Course creation and instructor/student course rosters verified in UI)
+- Relevant files: `server/src/controllers/course.controller.js`, `server/src/models/Course.js`, `server/src/models/Institution.js`, `client/src/pages/CoursesPage.jsx`
+
 ## 1. Module Overview
 The Institution & Course Management module handles the structural organization of ExamForge. It manages institutions, academic departments, courses, instructor assignments, and student enrollments, establishing the academic framework required for question generation, examination delivery, and performance analytics.
 
@@ -97,25 +123,4 @@ Institution Admin opens Management Panel
 ## 11. Security Considerations
 - Institution Admins cannot view or modify courses belonging to another institution.
 - Roster modification actions must generate audit log entries.
-
-## 12. Implementation Phases
-- **Phase 1 — Institution Setup**: Institution management for Super Admin.
-- **Phase 2 — Course & Department Framework**: Department and course creation logic for Institution Admin.
-- **Phase 3 — Roster & Assignment**: Instructor assignment and student enrollment features.
-- **Phase 4 — Integration**: Connect courses with user dashboards and RBAC context filters.
-
-## 13. Testing Scope
-- Creating and archiving institutions.
-- Creating courses within departments.
-- Assigning instructors and verifying course access boundaries.
-- Enrolling students and verifying course visibility.
-- Batch roster upload parsing and error handling.
-
-## 14. Definition of Done
-- [x] COMPLETE: Super Admin can manage institutions seamlessly (Create, List, Update, Add Departments, Archive).
-- [x] COMPLETE: Institution Admins can manage departments, courses, instructor assignments, and student rosters.
-- [x] COMPLETE: Assigned courses appear correctly on Instructor and Student dashboards.
-- [x] COMPLETE: Backend APIs (`/api/v1/institutions` and `/api/v1/courses`) implemented with RBAC and institution-level ownership guards.
-- [x] COMPLETE: Unique course code constraint per institution enforced.
-- [x] COMPLETE: Unit and integration test suites passing cleanly for all roles (Super Admin, Institution Admin, Instructor, Student).
 

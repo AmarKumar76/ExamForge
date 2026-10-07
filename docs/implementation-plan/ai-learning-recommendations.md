@@ -1,5 +1,31 @@
 # AI Learning Recommendations — Implementation Plan
 
+# Status
+
+[COMPLETED]
+
+## Completed
+
+- Student-driven Task CRUD operations (`/api/v1/study-plan/tasks`) for personal study management
+- Student Goal definition and progress tracking (`/api/v1/study-plan/goals`)
+- AI Study Roadmap generation (`/api/v1/study-plan/generate-roadmap`) using enrolled courses and upcoming exam schedules
+- Roadmap item conversion into actionable study tasks with target completion dates
+- Exam-Specific Revision Planner (`/api/v1/study-plan/generate-exam-revision`) creating countdown schedules for upcoming published exams
+- `AIPlanningAssistant` drawer providing interactive study scheduling guidance
+- Integration test suite (`scratch/testStudyPlanModule.js`) passing 100%
+
+## Remaining
+
+- None (All core SRS Study Plan & Learning Recommendations requirements are fully implemented and verified)
+
+## Verification Evidence
+
+- Backend tests: PASS (`node scratch/testStudyPlanModule.js` passed 100%)
+- Frontend build: PASS (`npx vite build` succeeded cleanly)
+- API verification: PASS (`/api/v1/study-plan/summary`, `/api/v1/study-plan/tasks`, `/api/v1/study-plan/generate-roadmap`, `/api/v1/study-plan/generate-exam-revision`)
+- Browser verification: PASS (Task CRUD, Goal setting, AI Roadmap generation, task conversion, and Exam Revision Mode verified)
+- Relevant files: `server/src/services/studyPlan.service.js`, `server/src/routes/studyPlan.routes.js`, `client/src/pages/StudentStudyPlanPage.jsx`, `client/src/components/AIPlanningAssistant.jsx`
+
 ## 1. Module Overview
 The AI Learning Recommendations module closes the learning loop between examination assessment and student study. By analyzing student exam performance, topic accuracy rates, and identified conceptual gaps, the module generates personalized revision topic roadmaps and recommends targeted practice questions to help candidates improve weak areas.
 
