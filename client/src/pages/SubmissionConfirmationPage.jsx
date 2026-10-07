@@ -1,10 +1,13 @@
 import React from 'react';
 import { CheckCircle2, ArrowLeft } from 'lucide-react';
 import { Button } from '../components/ui/Button';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 
 export const SubmissionConfirmationPage = () => {
   const navigate = useNavigate();
+  const location = useLocation();
+  const attempt = location.state?.attempt;
+  const exam = location.state?.exam;
 
   return (
     <div className="min-h-screen bg-[var(--background)] flex items-center justify-center p-4">
@@ -15,14 +18,13 @@ export const SubmissionConfirmationPage = () => {
 
         <div>
           <h2 className="text-2xl font-bold text-[var(--text-primary)]">Exam Submitted Successfully!</h2>
-          <p className="text-xs text-[var(--text-secondary)] mt-1">Your answers have been saved and submitted.</p>
+          <p className="text-sm font-semibold text-amber-500 mt-2">Result: Awaiting instructor release</p>
         </div>
 
         <div className="p-4 bg-[var(--background)] rounded-[var(--radius-md)] border border-[var(--border-subtle)] space-y-2 text-xs text-left">
-          <div className="flex justify-between"><span className="text-[var(--text-secondary)]">Exam:</span> <span className="font-bold text-[var(--text-primary)]">Operating Systems Midterm</span></div>
-          <div className="flex justify-between"><span className="text-[var(--text-secondary)]">Total Questions:</span> <span className="font-bold">20</span></div>
-          <div className="flex justify-between"><span className="text-[var(--text-secondary)]">Time Taken:</span> <span className="font-bold">47m 23s</span></div>
-          <div className="flex justify-between"><span className="text-[var(--text-secondary)]">Submission Time:</span> <span className="font-bold">Oct 10, 2026, 10:47 AM</span></div>
+          <div className="flex justify-between"><span className="text-[var(--text-secondary)]">Exam:</span> <span className="font-bold text-[var(--text-primary)]">{exam?.title || 'Unknown Exam'}</span></div>
+          {exam?.courseId && <div className="flex justify-between"><span className="text-[var(--text-secondary)]">Course:</span> <span className="font-bold text-[var(--text-primary)]">{exam?.courseId?.code || exam.courseId}</span></div>}
+          <div className="flex justify-between"><span className="text-[var(--text-secondary)]">Submission Time:</span> <span className="font-bold">{attempt?.submittedAt ? new Date(attempt.submittedAt).toLocaleString() : new Date().toLocaleString()}</span></div>
         </div>
 
         <Button variant="primary" size="md" className="w-full" icon={ArrowLeft} onClick={() => navigate('/student/dashboard')}>

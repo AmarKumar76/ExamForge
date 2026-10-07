@@ -115,6 +115,8 @@ export const AdminCourseManagementPage = () => {
     }
   };
 
+  const [selectedInstFilter, setSelectedInstFilter] = useState('ALL');
+
   const handleAssignInstructorsSubmit = async (e) => {
     e.preventDefault();
     if (!selectedCourse) return;
@@ -122,7 +124,11 @@ export const AdminCourseManagementPage = () => {
     try {
       setIsSubmitting(true);
       setError(null);
-      const res = await courseService.assignInstructors(selectedCourse.id || selectedCourse._id, selectedInstIds, 'set');
+      const courseId = (selectedCourse.id || selectedCourse._id)?.toString();
+      const cleanInstIds = selectedInstIds
+        .map((item) => (typeof item === 'string' ? item : (item.id || item._id)?.toString()))
+        .filter(Boolean);
+      const res = await courseService.assignInstructors(courseId, cleanInstIds, 'set');
       if (res.success) {
         setSuccess(`Instructor assignment updated for course ${selectedCourse.code}.`);
         setShowAssignModal(false);
@@ -143,7 +149,11 @@ export const AdminCourseManagementPage = () => {
     try {
       setIsSubmitting(true);
       setError(null);
-      const res = await courseService.manageStudents(selectedCourse.id || selectedCourse._id, selectedStudentIds, 'set');
+      const courseId = (selectedCourse.id || selectedCourse._id)?.toString();
+      const cleanStudentIds = selectedStudentIds
+        .map((item) => (typeof item === 'string' ? item : (item.id || item._id)?.toString()))
+        .filter(Boolean);
+      const res = await courseService.manageStudents(courseId, cleanStudentIds, 'set');
       if (res.success) {
         setSuccess(`Student enrollments updated for course ${selectedCourse.code}.`);
         setShowEnrollModal(false);
@@ -171,6 +181,10 @@ export const AdminCourseManagementPage = () => {
   };
 
   const filteredCourses = courses.filter((c) => {
+    const cInstId = (c.institutionId?.id || c.institutionId?._id || c.institutionId)?.toString();
+    if (selectedInstFilter !== 'ALL' && cInstId !== selectedInstFilter) {
+      return false;
+    }
     if (!searchQuery.trim()) return true;
     const q = searchQuery.toLowerCase();
     return (
@@ -221,23 +235,37 @@ export const AdminCourseManagementPage = () => {
         )}
 
         {/* Filter Bar */}
-        <div className="bg-[var(--surface)] p-4 rounded-2xl border border-[var(--border)] flex items-center justify-between">
-          <div className="relative w-full max-w-sm">
-            <Search className="w-4 h-4 absolute left-3 top-2.5 text-[var(--text-muted)]" />
-            <input
-              type="text"
-              placeholder="Search course code, name, department..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full pl-9 pr-3 py-1.5 bg-[var(--background)] border border-[var(--border)] rounded-xl text-xs text-[var(--text-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--primary)]"
-            />
+        <div className="bg-[var(--surface)] p-4 rounded-2xl border border-[var(--border)] flex flex-col md:flex-row items-center justify-between gap-4">
+          <div className="flex items-center gap-3 w-full md:w-auto">
+            <div className="relative w-full max-w-sm">
+              <Search className="w-4 h-4 absolute left-3 top-2.5 text-[var(--text-muted)]" />
+              <input
+                type="text"
+                placeholder="Search course code, name, department..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="w-full pl-9 pr-3 py-1.5 bg-[var(--background)] border border-[var(--border)] rounded-xl text-xs text-[var(--text-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--primary)]"
+              />
+            </div>
+            <select
+              value={selectedInstFilter}
+              onChange={(e) => setSelectedInstFilter(e.target.value)}
+              className="px-3 py-1.5 bg-[var(--background)] border border-[var(--border)] rounded-xl text-xs text-[var(--text-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--primary)]"
+            >
+              <option value="ALL">All Institutions</option>
+              {institutions.map((inst) => (
+                <option key={(inst.id || inst._id)?.toString()} value={(inst.id || inst._id)?.toString()}>
+                  {inst.name} ({inst.code})
+                </option>
+              ))}
+            </select>
           </div>
           <span className="text-xs font-semibold text-[var(--text-secondary)]">
             Total Courses: <strong>{filteredCourses.length}</strong>
           </span>
         </div>
 
-        {/* Course Cards Grid */}
+        {/* Course Cards Grid Grouped by Institution */}
         {isLoading ? (
           <div className="p-12 text-center text-xs text-[var(--text-secondary)] bg-[var(--surface)] rounded-2xl border border-[var(--border)]">
             Loading database course directory...
@@ -252,69 +280,123 @@ export const AdminCourseManagementPage = () => {
             </Button>
           </div>
         ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {filteredCourses.map((c) => {
-              const cId = c.id || c._id;
-              const instNames = c.instructorIds?.map((i) => i.name || i.email).join(', ') || 'Unassigned';
+          <div className="space-y-8">
+            {(selectedInstFilter === 'ALL'
+              ? institutions
+              : institutions.filter((i) => (i.id || i._id)?.toString() === selectedInstFilter)
+            ).map((inst) => {
+              const instId = (inst.id || inst._id)?.toString();
+              const instCourses = filteredCourses.filter((c) => {
+                const cInstId = (c.institutionId?.id || c.institutionId?._id || c.institutionId)?.toString();
+                return cInstId === instId;
+              });
+
+              if (selectedInstFilter === 'ALL' && instCourses.length === 0) return null;
+
               return (
-                <div
-                  key={cId}
-                  className="bg-[var(--surface)] p-5 rounded-2xl border border-[var(--border)] shadow-xs flex flex-col justify-between space-y-4 hover:border-[var(--primary-border)] transition-all"
-                >
-                  <div className="space-y-3">
-                    <div className="flex items-center justify-between">
-                      <span className="text-xs font-extrabold uppercase tracking-wider text-[var(--primary)] px-2.5 py-1 rounded-md bg-[var(--primary-light)]">
-                        {c.code}
-                      </span>
-                      <Badge variant={c.status === 'ACTIVE' ? 'success' : 'neutral'}>{c.status}</Badge>
-                    </div>
-                    <div>
-                      <h3 className="text-base font-bold text-[var(--text-primary)]">{c.name}</h3>
-                      <p className="text-xs text-[var(--text-secondary)] mt-0.5">{c.department} Department</p>
-                    </div>
-                    <div className="p-2.5 bg-[var(--background)] rounded-xl border border-[var(--border-subtle)] text-[11px] space-y-1">
-                      <div className="flex justify-between">
-                        <span className="text-[var(--text-secondary)]">Assigned Faculty:</span>
-                        <strong className="text-[var(--text-primary)]">{instNames}</strong>
+                <div key={instId} className="space-y-4">
+                  <div className="flex items-center justify-between border-b border-[var(--border-subtle)] pb-2.5">
+                    <div className="flex items-center gap-3">
+                      <div className="w-8 h-8 rounded-lg bg-[var(--primary-light)] text-[var(--primary)] flex items-center justify-center font-extrabold text-xs uppercase tracking-wider border border-[var(--primary-border)]">
+                        {inst.code}
                       </div>
-                      <div className="flex justify-between">
-                        <span className="text-[var(--text-secondary)]">Enrolled Students:</span>
-                        <strong className="text-[var(--text-primary)]">{c.studentIds?.length || 0} Students</strong>
-                      </div>
+                      <h2 className="text-base font-bold text-[var(--text-primary)]">{inst.name}</h2>
                     </div>
+                    <span className="text-xs font-semibold px-2.5 py-1 rounded-full bg-[var(--surface-muted)] text-[var(--text-secondary)] border border-[var(--border-subtle)]">
+                      {instCourses.length} {instCourses.length === 1 ? 'Course' : 'Courses'}
+                    </span>
                   </div>
 
-                  <div className="pt-3 border-t border-[var(--border-subtle)] flex flex-wrap items-center justify-between gap-2 text-xs">
-                    <div className="flex items-center gap-1">
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        icon={UserCheck}
-                        onClick={() => {
-                          setSelectedCourse(c);
-                          setSelectedInstIds(c.instructorIds?.map((i) => i._id || i) || []);
-                          setShowAssignModal(true);
-                        }}
-                      >
-                        Assign Inst
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        icon={GraduationCap}
-                        onClick={() => {
-                          setSelectedCourse(c);
-                          setSelectedStudentIds(c.studentIds?.map((s) => s._id || s) || []);
-                          setShowEnrollModal(true);
-                        }}
-                      >
-                        Students
-                      </Button>
+                  {instCourses.length === 0 ? (
+                    <div className="p-6 text-center text-xs text-[var(--text-muted)] bg-[var(--surface)] rounded-2xl border border-[var(--border-subtle)]">
+                      No matching courses found for this institution.
                     </div>
-                    <Button variant="ghost" size="sm" icon={ArrowRight} onClick={() => navigate(`/courses/${cId}`)}>
-                      Details
-                    </Button>
-                  </div>
+                  ) : (
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                      {instCourses.map((c) => {
+                        const cId = (c.id || c._id)?.toString();
+                        const instNames = c.instructorIds?.map((i) => i.name || i.email).join(', ') || 'Unassigned';
+
+                        return (
+                          <div
+                            key={cId}
+                            className="bg-[var(--surface)] p-5 rounded-2xl border border-[var(--border)] shadow-xs flex flex-col justify-between space-y-4 hover:border-[var(--primary-border)] transition-all min-w-0 overflow-hidden"
+                          >
+                            <div className="space-y-3 min-w-0">
+                              <div className="flex items-center justify-between gap-2 min-w-0">
+                                <span className="text-xs font-extrabold uppercase tracking-wider text-[var(--primary)] px-2.5 py-1 rounded-md bg-[var(--primary-light)] shrink-0">
+                                  {c.code}
+                                </span>
+                                <Badge variant={c.status === 'ACTIVE' ? 'success' : 'neutral'} className="shrink-0">
+                                  {c.status}
+                                </Badge>
+                              </div>
+                              <div className="min-w-0">
+                                <h3 className="text-base font-bold text-[var(--text-primary)] min-w-0 break-words line-clamp-2">
+                                  {c.name || c.title}
+                                </h3>
+                                <p className="text-xs text-[var(--text-secondary)] mt-0.5 min-w-0 truncate">
+                                  {c.department || 'Computer Science & Engineering'}
+                                </p>
+                              </div>
+                              <div className="p-3 bg-[var(--background)] rounded-xl border border-[var(--border-subtle)] text-[11px] space-y-1.5 min-w-0">
+                                <div className="flex justify-between items-start gap-2 min-w-0">
+                                  <span className="text-[var(--text-secondary)] shrink-0">Assigned Faculty:</span>
+                                  <strong className="text-[var(--text-primary)] text-right min-w-0 break-words font-semibold">
+                                    {instNames}
+                                  </strong>
+                                </div>
+                                <div className="flex justify-between items-center gap-2 min-w-0">
+                                  <span className="text-[var(--text-secondary)] shrink-0">Enrolled Students:</span>
+                                  <strong className="text-[var(--text-primary)] text-right shrink-0 font-semibold">
+                                    {c.studentIds?.length || 0} Students
+                                  </strong>
+                                </div>
+                              </div>
+                            </div>
+
+                            <div className="pt-3 border-t border-[var(--border-subtle)] flex flex-wrap items-center justify-between gap-2 text-xs">
+                              <div className="flex flex-wrap items-center gap-1.5">
+                                <Button
+                                  variant="secondary"
+                                  size="sm"
+                                  icon={UserCheck}
+                                  onClick={() => {
+                                    setSelectedCourse(c);
+                                    const initialInstIds = (c.instructorIds || [])
+                                      .map((i) => (typeof i === 'string' ? i : (i.id || i._id)?.toString()))
+                                      .filter(Boolean);
+                                    setSelectedInstIds(initialInstIds);
+                                    setShowAssignModal(true);
+                                  }}
+                                >
+                                  Assign Instructor
+                                </Button>
+                                <Button
+                                  variant="secondary"
+                                  size="sm"
+                                  icon={GraduationCap}
+                                  onClick={() => {
+                                    setSelectedCourse(c);
+                                    const initialStudIds = (c.studentIds || [])
+                                      .map((s) => (typeof s === 'string' ? s : (s.id || s._id)?.toString()))
+                                      .filter(Boolean);
+                                    setSelectedStudentIds(initialStudIds);
+                                    setShowEnrollModal(true);
+                                  }}
+                                >
+                                  Students
+                                </Button>
+                              </div>
+                              <Button variant="primary" size="sm" icon={ArrowRight} onClick={() => navigate(`/courses/${cId}`)}>
+                                View Course →
+                              </Button>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
                 </div>
               );
             })}
@@ -417,8 +499,8 @@ export const AdminCourseManagementPage = () => {
                     <p className="text-[11px] text-[var(--text-muted)] italic">No instructors registered in system.</p>
                   ) : (
                     instructors.map((inst) => {
-                      const instId = inst.id || inst._id;
-                      const isChecked = selectedInstIds.includes(instId);
+                      const instId = (inst.id || inst._id)?.toString();
+                      const isChecked = selectedInstIds.some((id) => id?.toString() === instId);
                       return (
                         <label
                           key={instId}
@@ -433,7 +515,7 @@ export const AdminCourseManagementPage = () => {
                             checked={isChecked}
                             onChange={(e) => {
                               if (e.target.checked) {
-                                setSelectedInstIds([...selectedInstIds, instId]);
+                                setSelectedInstIds([...selectedInstIds.filter((id) => id !== instId), instId]);
                               } else {
                                 setSelectedInstIds(selectedInstIds.filter((id) => id !== instId));
                               }
@@ -479,8 +561,8 @@ export const AdminCourseManagementPage = () => {
                     <p className="text-[11px] text-[var(--text-muted)] italic">No student accounts registered in system.</p>
                   ) : (
                     students.map((stud) => {
-                      const studId = stud.id || stud._id;
-                      const isChecked = selectedStudentIds.includes(studId);
+                      const studId = (stud.id || stud._id)?.toString();
+                      const isChecked = selectedStudentIds.some((id) => id?.toString() === studId);
                       return (
                         <label
                           key={studId}
@@ -495,7 +577,7 @@ export const AdminCourseManagementPage = () => {
                             checked={isChecked}
                             onChange={(e) => {
                               if (e.target.checked) {
-                                setSelectedStudentIds([...selectedStudentIds, studId]);
+                                setSelectedStudentIds([...selectedStudentIds.filter((id) => id !== studId), studId]);
                               } else {
                                 setSelectedStudentIds(selectedStudentIds.filter((id) => id !== studId));
                               }

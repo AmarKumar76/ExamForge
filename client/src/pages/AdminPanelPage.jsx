@@ -380,33 +380,34 @@ export const AdminPanelPage = () => {
                 {courses.map((c) => (
                   <div
                     key={c.id || c._id}
-                    className="bg-[var(--surface)] p-5 rounded-2xl border border-[var(--border)] shadow-xs flex flex-col justify-between space-y-4 hover:border-[var(--primary-border)] transition-all"
+                    className="bg-[var(--surface)] p-5 rounded-2xl border border-[var(--border)] shadow-xs flex flex-col justify-between space-y-4 hover:border-[var(--primary-border)] transition-all min-w-0 overflow-hidden"
                   >
-                    <div className="space-y-3">
-                      <div className="flex items-center justify-between">
-                        <span className="text-xs font-extrabold uppercase tracking-wider text-[var(--primary)] px-2.5 py-1 rounded-md bg-[var(--primary-light)]">
+                    <div className="space-y-3 min-w-0">
+                      <div className="flex items-center justify-between gap-2 min-w-0">
+                        <span className="text-xs font-extrabold uppercase tracking-wider text-[var(--primary)] px-2.5 py-1 rounded-md bg-[var(--primary-light)] shrink-0">
                           {c.code}
                         </span>
-                        <Badge variant={c.status === 'ACTIVE' ? 'success' : 'neutral'}>
+                        <Badge variant={c.status === 'ACTIVE' ? 'success' : 'neutral'} className="shrink-0">
                           {c.status}
                         </Badge>
                       </div>
-                      <div>
-                        <h3 className="text-base font-bold text-[var(--text-primary)]">{c.name}</h3>
-                        <p className="text-xs text-[var(--text-secondary)] mt-1">{c.department} Department</p>
+                      <div className="min-w-0">
+                        <h3 className="text-base font-bold text-[var(--text-primary)] min-w-0 break-words line-clamp-2">{c.name || c.title}</h3>
+                        <p className="text-xs text-[var(--text-secondary)] mt-1 min-w-0 truncate">{c.department} Department</p>
                       </div>
                     </div>
 
-                    <div className="pt-4 border-t border-[var(--border-subtle)] flex items-center justify-between text-xs">
-                      <div className="space-y-0.5">
-                        <span className="text-[var(--text-secondary)] block">{c.instructorIds?.length || 0} Instructors</span>
-                        <span className="text-[var(--text-secondary)] block">{c.studentIds?.length || 0} Enrolled Students</span>
+                    <div className="pt-4 border-t border-[var(--border-subtle)] flex items-center justify-between gap-2 text-xs">
+                      <div className="space-y-0.5 min-w-0">
+                        <span className="text-[var(--text-secondary)] block text-[11px] truncate">{c.instructorIds?.length || 0} Instructors</span>
+                        <span className="text-[var(--text-secondary)] block text-[11px] truncate">{c.studentIds?.length || 0} Enrolled Students</span>
                       </div>
                       <Button
                         variant="ghost"
                         size="sm"
                         icon={ArrowRight}
                         onClick={() => navigate(`/courses/${c.id || c._id}`)}
+                        className="shrink-0"
                       >
                         View Details
                       </Button>
@@ -435,7 +436,7 @@ export const AdminPanelPage = () => {
                   <input
                     type="text"
                     required
-                    placeholder="e.g. Stanford University"
+                    placeholder="e.g. Parul Institute of Technology"
                     value={instForm.name}
                     onChange={(e) => setInstForm({ ...instForm, name: e.target.value })}
                     className="w-full px-3 py-2 bg-[var(--background)] border border-[var(--border)] rounded-xl text-[var(--text-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--primary)]"
@@ -447,7 +448,7 @@ export const AdminPanelPage = () => {
                   <input
                     type="text"
                     required
-                    placeholder="e.g. STANFORD"
+                    placeholder="e.g. PIT"
                     value={instForm.code}
                     onChange={(e) => setInstForm({ ...instForm, code: e.target.value })}
                     className="w-full px-3 py-2 bg-[var(--background)] border border-[var(--border)] rounded-xl text-[var(--text-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--primary)]"

@@ -7,6 +7,7 @@ import { Badge } from '../components/ui/Badge';
 import { courseService } from '../services/courseService';
 import { courseMaterialService } from '../services/courseMaterialService';
 import { aiService } from '../services/aiService';
+import { folderService } from '../services/folderService';
 import { useAuth } from '../context/AuthContext';
 import {
   Sparkles,
@@ -25,6 +26,7 @@ import {
   Filter,
   Layers,
   HelpCircle,
+  Folder,
 } from 'lucide-react';
 
 export const AIQuestionStudio = () => {
@@ -34,6 +36,8 @@ export const AIQuestionStudio = () => {
 
   const [courses, setCourses] = useState([]);
   const [selectedCourseId, setSelectedCourseId] = useState(searchParams.get('courseId') || '');
+  const [folders, setFolders] = useState([]);
+  const [selectedFolderId, setSelectedFolderId] = useState(searchParams.get('folderId') || '');
   const [materials, setMaterials] = useState([]);
   const [questions, setQuestions] = useState([]);
 
@@ -111,14 +115,15 @@ export const AIQuestionStudio = () => {
 
   // Generation Config State
   const [selectedMaterialIds, setSelectedMaterialIds] = useState([]);
+  const [chapterName, setChapterName] = useState('');
   const [topic, setTopic] = useState('');
   const [difficulty, setDifficulty] = useState('MEDIUM');
   const [questionTypes, setQuestionTypes] = useState(['MCQ']);
-  const [totalQuestionsCount, setTotalQuestionsCount] = useState(30);
+  const [totalQuestionsCount, setTotalQuestionsCount] = useState(10);
   const [difficultyDist, setDifficultyDist] = useState({
-    easy: 10,
-    medium: 15,
-    hard: 5,
+    easy: 4,
+    medium: 4,
+    hard: 2,
   });
 
   // Material removal state
@@ -189,13 +194,25 @@ export const AIQuestionStudio = () => {
     loadCourses();
   }, []);
 
-  // Load course materials and draft questions when selectedCourseId changes
+  // Load course materials, folders, and draft questions when selectedCourseId changes
   useEffect(() => {
     if (selectedCourseId) {
       loadCourseMaterials(selectedCourseId);
+      loadFolders(selectedCourseId);
       loadCourseQuestions(selectedCourseId);
     }
   }, [selectedCourseId]);
+
+  const loadFolders = async (courseId) => {
+    try {
+      const res = await folderService.getFolders(courseId);
+      if (res.data?.folders) {
+        setFolders(res.data.folders);
+      }
+    } catch (err) {
+      console.warn('Failed to load folders:', err.message);
+    }
+  };
 
   const loadCourseMaterials = async (courseId) => {
     try {
@@ -277,8 +294,10 @@ export const AIQuestionStudio = () => {
       setIsGenerating(true);
 
       const payload = {
+        folderId: selectedFolderId || null,
+        chapterName: chapterName || topic,
         materialIds: selectedMaterialIds,
-        topic,
+        topic: topic || chapterName,
         difficulty,
         difficultyDistribution: difficultyDist,
         questionTypes,
@@ -287,6 +306,7 @@ export const AIQuestionStudio = () => {
 
       const res = await aiService.generateQuestions(selectedCourseId, payload);
       setActionSuccess(`Generated ${res.length} DRAFT questions successfully!`);
+      await loadFolders(selectedCourseId);
       await loadCourseQuestions(selectedCourseId);
       setStep(3); // Move to review studio
     } catch (err) {
@@ -714,15 +734,57 @@ export const AIQuestionStudio = () => {
                   </div>
                 </div>
 
-                {/* Topic & Total Count */}
+                {/* Chapter / Unit & Topic & Total Count */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-xs font-bold text-[var(--text-primary)] mb-1">
+                      Chapter / Unit Name <span className="text-red-500">*</span>
+                    </label>
+                    <div className="space-y-1.5">
+                      <input
+                        type="text"
+                        placeholder="e.g. Introduction and Analysis of Algorithms"
+                        value={chapterName}
+                        onChange={(e) => setChapterName(e.target.value)}
+                        className="w-full px-3.5 py-2 text-xs bg-[var(--surface)] border border-[var(--border)] rounded-xl text-[var(--text-primary)] font-bold focus:ring-2 focus:ring-[var(--primary)]"
+                      />
+                      <span className="text-[10px] text-[var(--text-muted)] block">
+                        Chapter folder will be automatically created or reused upon generation.
+                      </span>
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-bold text-[var(--text-secondary)] mb-1">
+                      Or Select Existing Chapter Folder
+                    </label>
+                    <select
+                      value={selectedFolderId}
+                      onChange={(e) => {
+                        setSelectedFolderId(e.target.value);
+                        const f = folders.find((item) => (item.id || item._id) === e.target.value);
+                        if (f) setChapterName(f.title);
+                      }}
+                      className="w-full px-3.5 py-2 text-xs bg-[var(--surface-muted)] border border-[var(--border)] rounded-xl text-[var(--text-primary)] font-semibold focus:ring-2 focus:ring-[var(--primary)]"
+                    >
+                      <option value="">-- Create / Use Entered Chapter Name --</option>
+                      {folders.map((f) => (
+                        <option key={f.id || f._id} value={f.id || f._id}>
+                          📁 {f.title} ({f.counts?.total || 0} Qs)
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div>
                     <label className="block text-xs font-bold text-[var(--text-secondary)] mb-1">
-                      Target Topic / Keyword Focus
+                      Target Topic / Focus Area (Optional)
                     </label>
                     <input
                       type="text"
-                      placeholder="e.g. Memory Management, Recursion"
+                      placeholder="e.g. Asymptotic Notation, Time Complexity"
                       value={topic}
                       onChange={(e) => setTopic(e.target.value)}
                       className="w-full px-3.5 py-2 text-xs bg-[var(--surface-muted)] border border-[var(--border)] rounded-xl text-[var(--text-primary)] focus:ring-2 focus:ring-[var(--primary)]"

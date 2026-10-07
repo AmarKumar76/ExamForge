@@ -160,6 +160,31 @@ export const InstructorDashboard = () => {
                 </div>
               </div>
             </Card>
+            
+            <Card title="Result Publishing & Reviews" action={
+                <Button variant="primary" size="sm" icon={ArrowRight} onClick={() => navigate('/instructor/results')}>
+                  Review Results
+                </Button>
+            }>
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                 <div className="text-center p-3 bg-[var(--surface-muted)] rounded-xl border">
+                    <span className="block text-xl font-black text-amber-500">{stats.pendingReviewsCount || 0}</span>
+                    <span className="text-[10px] text-[var(--text-secondary)] font-bold uppercase">Pending Reviews</span>
+                 </div>
+                 <div className="text-center p-3 bg-[var(--surface-muted)] rounded-xl border">
+                    <span className="block text-xl font-black text-[var(--success)]">{stats.publishedResultsCount || 0}</span>
+                    <span className="text-[10px] text-[var(--text-secondary)] font-bold uppercase">Published Results</span>
+                 </div>
+                 <div className="text-center p-3 bg-[var(--surface-muted)] rounded-xl border">
+                    <span className="block text-xl font-black text-[var(--text-primary)]">{stats.totalSubmittedAttempts || 0}</span>
+                    <span className="text-[10px] text-[var(--text-secondary)] font-bold uppercase">Students Attempted</span>
+                 </div>
+                 <div className="text-center p-3 bg-[var(--surface-muted)] rounded-xl border">
+                    <span className="block text-xl font-black text-[var(--primary)]">{stats.averageClassScore || 0}%</span>
+                    <span className="text-[10px] text-[var(--text-secondary)] font-bold uppercase">Average Score</span>
+                 </div>
+              </div>
+            </Card>
           </div>
 
           {/* Right Column: Quick Action Cards */}

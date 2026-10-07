@@ -9,28 +9,40 @@ export const adminService = {
   },
 
   /**
-   * Fetch audit logs
+   * Fetch real MongoDB counts for Audit Trail and System Events
    */
-  getAuditLogs: async (filters = {}) => {
-    const params = new URLSearchParams();
-    if (filters.action) params.append('action', filters.action);
-    if (filters.resourceType) params.append('resourceType', filters.resourceType);
-    if (filters.search) params.append('search', filters.search);
+  getLogCounts: async () => {
+    return api.get('/admin/audit/counts');
+  },
 
-    const queryString = params.toString() ? `?${params.toString()}` : '';
+  /**
+   * Fetch paginated audit logs
+   */
+  getAuditLogs: async (params = {}) => {
+    const query = new URLSearchParams();
+    Object.keys(params).forEach((key) => {
+      if (params[key] !== undefined && params[key] !== null && params[key] !== '') {
+        query.append(key, params[key]);
+      }
+    });
+
+    const queryString = query.toString() ? `?${query.toString()}` : '';
     return api.get(`/admin/audit-logs${queryString}`);
   },
 
   /**
-   * Fetch system logs
+   * Fetch paginated system logs
    */
-  getSystemLogs: async (filters = {}) => {
-    const params = new URLSearchParams();
-    if (filters.level) params.append('level', filters.level);
-    if (filters.module) params.append('module', filters.module);
-    if (filters.search) params.append('search', filters.search);
+  getSystemLogs: async (params = {}) => {
+    const query = new URLSearchParams();
+    Object.keys(params).forEach((key) => {
+      if (params[key] !== undefined && params[key] !== null && params[key] !== '') {
+        query.append(key, params[key]);
+      }
+    });
 
-    const queryString = params.toString() ? `?${params.toString()}` : '';
+    const queryString = query.toString() ? `?${query.toString()}` : '';
     return api.get(`/admin/system-logs${queryString}`);
   },
 };
+

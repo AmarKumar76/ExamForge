@@ -6,12 +6,12 @@ import { Button } from '../components/ui/Button';
 import { Badge } from '../components/ui/Badge';
 import { courseService } from '../services/courseService';
 import { aiService } from '../services/aiService';
+import { folderService } from '../services/folderService';
 import { useAuth } from '../context/AuthContext';
 import {
   FolderKanban,
   Sparkles,
   Search,
-  Filter,
   Check,
   X,
   Edit2,
@@ -19,6 +19,10 @@ import {
   BookOpen,
   CheckCircle2,
   AlertCircle,
+  Folder,
+  FolderPlus,
+  Move,
+  ChevronLeft,
   RefreshCw,
 } from 'lucide-react';
 
@@ -28,9 +32,18 @@ export const QuestionBankPage = () => {
 
   const [courses, setCourses] = useState([]);
   const [selectedCourseId, setSelectedCourseId] = useState('');
+  const [folders, setFolders] = useState([]);
+  const [uncategorizedFolder, setUncategorizedFolder] = useState(null);
+  const [allCourseCounts, setAllCourseCounts] = useState(null);
+
+  // 'ALL' = Folders Overview Mode, 'uncategorized' = Unassigned Questions Mode, or folder _id
+  const [selectedFolderId, setSelectedFolderId] = useState('ALL');
+
   const [questions, setQuestions] = useState([]);
+  const [selectedQuestionIds, setSelectedQuestionIds] = useState([]);
 
   const [isLoadingCourses, setIsLoadingCourses] = useState(true);
+  const [isLoadingFolders, setIsLoadingFolders] = useState(false);
   const [isLoadingQuestions, setIsLoadingQuestions] = useState(false);
   const [error, setError] = useState(null);
   const [success, setSuccess] = useState(null);
@@ -38,10 +51,18 @@ export const QuestionBankPage = () => {
   // Filters
   const [statusFilter, setStatusFilter] = useState('ALL');
   const [difficultyFilter, setDifficultyFilter] = useState('ALL');
-  const [typeFilter, setTypeFilter] = useState('ALL');
   const [searchQuery, setSearchQuery] = useState('');
 
-  // Edit Modal State
+  // Folder Modal State
+  const [isFolderModalOpen, setIsFolderModalOpen] = useState(false);
+  const [editingFolder, setEditingFolder] = useState(null);
+  const [folderForm, setFolderForm] = useState({ title: '', description: '' });
+
+  // Move Modal State
+  const [moveModalQuestionId, setMoveModalQuestionId] = useState(null); // single question or 'BULK'
+  const [targetMoveFolderId, setTargetMoveFolderId] = useState('uncategorized');
+
+  // Edit Question Modal State
   const [editingQuestion, setEditingQuestion] = useState(null);
   const [editForm, setEditForm] = useState({
     questionText: '',
@@ -58,11 +79,16 @@ export const QuestionBankPage = () => {
       try {
         setIsLoadingCourses(true);
         const res = await courseService.getAll();
-        if (res.success && Array.isArray(res.data?.courses)) {
-          setCourses(res.data.courses);
-          if (res.data.courses.length > 0) {
-            setSelectedCourseId(res.data.courses[0]._id || res.data.courses[0].id);
-          }
+        const courseList = Array.isArray(res.data?.courses)
+          ? res.data.courses
+          : Array.isArray(res.data)
+          ? res.data
+          : Array.isArray(res.courses)
+          ? res.courses
+          : [];
+        setCourses(courseList);
+        if (courseList.length > 0) {
+          setSelectedCourseId(courseList[0]._id || courseList[0].id);
         }
       } catch (err) {
         setError(err.message || 'Failed to load assigned courses');
@@ -73,24 +99,49 @@ export const QuestionBankPage = () => {
     loadCourses();
   }, []);
 
-  // Load questions when selectedCourseId changes
+  // Load folders & questions when selectedCourseId changes
   useEffect(() => {
     if (selectedCourseId) {
-      loadQuestions(selectedCourseId);
+      loadFoldersAndQuestions(selectedCourseId);
     }
   }, [selectedCourseId]);
 
-  const loadQuestions = async (courseId) => {
+  // Reload questions when selectedFolderId changes
+  useEffect(() => {
+    if (selectedCourseId) {
+      loadQuestions(selectedCourseId, selectedFolderId);
+    }
+  }, [selectedFolderId]);
+
+  const loadFoldersAndQuestions = async (courseId) => {
+    await Promise.all([loadFolders(courseId), loadQuestions(courseId, selectedFolderId)]);
+  };
+
+  const loadFolders = async (courseId) => {
+    try {
+      setIsLoadingFolders(true);
+      const res = await folderService.getFolders(courseId);
+      if (res.data) {
+        setFolders(res.data.folders || []);
+        setUncategorizedFolder(res.data.uncategorized || null);
+        setAllCourseCounts(res.data.allCourseCounts || null);
+      }
+    } catch (err) {
+      console.error('Failed to load folders:', err);
+    } finally {
+      setIsLoadingFolders(false);
+    }
+  };
+
+  const loadQuestions = async (courseId, folderId) => {
     try {
       setIsLoadingQuestions(true);
       setError(null);
-      const res = await aiService.getQuestions(courseId);
-      const qList = Array.isArray(res.data)
-        ? res.data
-        : Array.isArray(res)
-        ? res
-        : [];
+      const folderParam = folderId === 'ALL' ? '' : folderId;
+      const res = await aiService.getQuestions(courseId, '', folderParam);
+      const qList = Array.isArray(res.data) ? res.data : Array.isArray(res) ? res : [];
       setQuestions(qList);
+      setSelectedQuestionIds([]);
     } catch (err) {
       setError(err.message || 'Failed to load questions from Question Bank');
     } finally {
@@ -98,7 +149,96 @@ export const QuestionBankPage = () => {
     }
   };
 
-  // Actions
+  // Folder CRUD handlers
+  const handleOpenCreateFolder = () => {
+    setEditingFolder(null);
+    setFolderForm({ title: '', description: '' });
+    setIsFolderModalOpen(true);
+  };
+
+  const handleOpenEditFolder = (folder) => {
+    setEditingFolder(folder);
+    setFolderForm({ title: folder.title || '', description: folder.description || '' });
+    setIsFolderModalOpen(true);
+  };
+
+  const handleSaveFolder = async () => {
+    if (!folderForm.title.trim()) {
+      setError('Folder title is required');
+      return;
+    }
+    try {
+      setError(null);
+      if (editingFolder) {
+        await folderService.updateFolder(editingFolder.id || editingFolder._id, folderForm);
+        setSuccess(`Folder "${folderForm.title}" updated successfully!`);
+      } else {
+        const res = await folderService.createFolder(selectedCourseId, {
+          ...folderForm,
+          questionIds: selectedQuestionIds,
+        });
+        const newFolderId = res.data?._id || res.data?.id;
+        if (selectedQuestionIds.length > 0) {
+          setSuccess(`Folder "${folderForm.title}" created and ${selectedQuestionIds.length} question(s) moved into it!`);
+        } else {
+          setSuccess(`Folder "${folderForm.title}" created successfully!`);
+        }
+        if (newFolderId) {
+          setSelectedFolderId(newFolderId);
+        }
+      }
+      setSelectedQuestionIds([]);
+      setIsFolderModalOpen(false);
+      await loadFoldersAndQuestions(selectedCourseId);
+    } catch (err) {
+      setError(err.message || 'Failed to save folder.');
+    }
+  };
+
+  const handleDeleteFolder = async (folder) => {
+    if (!window.confirm(`Are you sure you want to delete folder "${folder.title}"? Questions in this folder will be moved to Unassigned.`)) {
+      return;
+    }
+    try {
+      setError(null);
+      await folderService.deleteFolder(folder.id || folder._id);
+      setSuccess(`Folder "${folder.title}" deleted. Questions moved to Unassigned Questions.`);
+      if (selectedFolderId === (folder.id || folder._id)) {
+        setSelectedFolderId('ALL');
+      }
+      await loadFoldersAndQuestions(selectedCourseId);
+    } catch (err) {
+      setError(err.message || 'Failed to delete folder.');
+    }
+  };
+
+  // Move Question Handlers
+  const handleOpenMoveModal = (qId) => {
+    setMoveModalQuestionId(qId);
+    setTargetMoveFolderId('uncategorized');
+    setIsFolderModalOpen(false);
+  };
+
+  const handleConfirmMove = async () => {
+    try {
+      setError(null);
+      if (moveModalQuestionId === 'BULK') {
+        if (selectedQuestionIds.length === 0) return;
+        await folderService.bulkMoveQuestions(selectedQuestionIds, targetMoveFolderId);
+        setSuccess(`${selectedQuestionIds.length} question(s) saved to folder successfully!`);
+      } else {
+        await folderService.moveQuestion(moveModalQuestionId, targetMoveFolderId);
+        setSuccess(targetMoveFolderId === 'uncategorized' ? 'Question moved to Unassigned' : 'Question saved to folder successfully!');
+      }
+      setMoveModalQuestionId(null);
+      setSelectedQuestionIds([]);
+      await loadFoldersAndQuestions(selectedCourseId);
+    } catch (err) {
+      setError(err.message || 'Failed to move question.');
+    }
+  };
+
+  // Question Action Handlers
   const handleApprove = async (qId) => {
     try {
       setError(null);
@@ -106,6 +246,7 @@ export const QuestionBankPage = () => {
       const updatedDoc = res.data || res;
       setQuestions((prev) => prev.map((q) => ((q._id || q.id) === qId ? updatedDoc : q)));
       setSuccess('Question approved for official exams!');
+      loadFolders(selectedCourseId);
     } catch (err) {
       setError(err.message || 'Failed to approve question.');
     }
@@ -118,36 +259,9 @@ export const QuestionBankPage = () => {
       const updatedDoc = res.data || res;
       setQuestions((prev) => prev.map((q) => ((q._id || q.id) === qId ? updatedDoc : q)));
       setSuccess('Question marked as REJECTED.');
+      loadFolders(selectedCourseId);
     } catch (err) {
       setError(err.message || 'Failed to reject question.');
-    }
-  };
-
-  const handleRestore = async (qId) => {
-    try {
-      setError(null);
-      const res = await aiService.restoreQuestion(qId);
-      const updatedDoc = res.data || res;
-      setQuestions((prev) => prev.map((q) => ((q._id || q.id) === qId ? updatedDoc : q)));
-      setSuccess('Question restored to DRAFT status successfully!');
-    } catch (err) {
-      setError(err.message || 'Failed to restore question.');
-    }
-  };
-
-  const handleDelete = async (qId) => {
-    try {
-      setError(null);
-      const res = await aiService.deleteQuestion(qId);
-      if (res.status === 'ARCHIVED') {
-        setQuestions((prev) => prev.map((q) => ((q._id || q.id) === qId ? { ...q, status: 'ARCHIVED' } : q)));
-        setSuccess('Question is referenced in exams/attempts and has been archived.');
-      } else {
-        setQuestions((prev) => prev.filter((q) => (q._id || q.id) !== qId));
-        setSuccess('Question deleted from Question Bank.');
-      }
-    } catch (err) {
-      setError(err.message || 'Failed to delete question.');
     }
   };
 
@@ -178,11 +292,15 @@ export const QuestionBankPage = () => {
     }
   };
 
-  // Filter logic
+  const toggleSelectQuestion = (id) => {
+    setSelectedQuestionIds((prev) =>
+      prev.includes(id) ? prev.filter((item) => item !== id) : [...prev, id]
+    );
+  };
+
   const filteredQuestions = questions.filter((q) => {
     if (statusFilter !== 'ALL' && q.status !== statusFilter) return false;
     if (difficultyFilter !== 'ALL' && q.difficulty !== difficultyFilter) return false;
-    if (typeFilter !== 'ALL' && q.type !== typeFilter) return false;
     if (searchQuery.trim()) {
       const query = searchQuery.toLowerCase();
       const matchText = q.questionText?.toLowerCase().includes(query);
@@ -192,14 +310,13 @@ export const QuestionBankPage = () => {
     return true;
   });
 
-  const draftCount = questions.filter((q) => q.status === 'DRAFT').length;
-  const approvedCount = questions.filter((q) => q.status === 'APPROVED').length;
-  const rejectedCount = questions.filter((q) => q.status === 'REJECTED').length;
+  const selectedFolderObj = folders.find((f) => (f.id || f._id) === selectedFolderId);
+  const selectedCourse = courses.find((c) => (c._id || c.id) === selectedCourseId);
 
   return (
     <AppShell title="Question Bank">
-      <div className="space-y-6 pb-12">
-        {/* Header Bar */}
+      <div className="space-y-6 max-w-6xl mx-auto pb-12">
+        {/* Top Header Bar */}
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-[var(--surface)] p-6 rounded-2xl border border-[var(--border)] shadow-xs">
           <div>
             <h1 className="text-xl font-bold text-[var(--text-primary)] flex items-center gap-2">
@@ -207,7 +324,7 @@ export const QuestionBankPage = () => {
               Academic Question Bank
             </h1>
             <p className="text-xs text-[var(--text-secondary)] mt-0.5">
-              Review, filter, edit, and manage approved item pools for official exams.
+              Manage approved unit folders and create official exams for your assigned courses.
             </p>
           </div>
 
@@ -215,7 +332,10 @@ export const QuestionBankPage = () => {
             <div className="w-full sm:w-64">
               <select
                 value={selectedCourseId}
-                onChange={(e) => setSelectedCourseId(e.target.value)}
+                onChange={(e) => {
+                  setSelectedCourseId(e.target.value);
+                  setSelectedFolderId('ALL');
+                }}
                 disabled={isLoadingCourses}
                 className="w-full px-3 py-2 text-xs font-semibold bg-[var(--background)] border border-[var(--border)] rounded-xl text-[var(--text-primary)] focus:ring-2 focus:ring-[var(--primary)]"
               >
@@ -231,14 +351,20 @@ export const QuestionBankPage = () => {
               variant="primary"
               size="sm"
               icon={Sparkles}
-              onClick={() => navigate(`/instructor/ai-studio?courseId=${selectedCourseId}`)}
+              onClick={() =>
+                navigate(
+                  `/instructor/ai-studio?courseId=${selectedCourseId}${
+                    selectedFolderId && selectedFolderId !== 'ALL' ? `&folderId=${selectedFolderId}` : ''
+                  }`
+                )
+              }
             >
               AI Question Studio
             </Button>
           </div>
         </div>
 
-        {/* Feedback Banners */}
+        {/* Banners */}
         {error && (
           <div className="p-4 bg-red-500/10 border border-red-500/20 rounded-xl text-xs text-red-600 dark:text-red-400 flex items-center justify-between">
             <div className="flex items-center gap-2">
@@ -263,369 +389,426 @@ export const QuestionBankPage = () => {
           </div>
         )}
 
-        {/* Filter Controls & Tabs */}
-        <div className="bg-[var(--surface)] p-4 rounded-2xl border border-[var(--border)] space-y-4 shadow-xs">
-          <div className="flex flex-wrap items-center justify-between gap-4">
-            {/* Status Tabs */}
-            <div className="flex items-center gap-2 overflow-x-auto pb-1 sm:pb-0">
-              {[
-                { id: 'ALL', label: `All (${questions.length})` },
-                { id: 'APPROVED', label: `Approved (${approvedCount})` },
-                { id: 'DRAFT', label: `Draft (${draftCount})` },
-                { id: 'REJECTED', label: `Rejected (${rejectedCount})` },
-              ].map((tab) => (
-                <button
-                  key={tab.id}
-                  onClick={() => setStatusFilter(tab.id)}
-                  className={`px-3.5 py-1.5 text-xs font-bold rounded-xl border transition-all cursor-pointer ${
-                    statusFilter === tab.id
-                      ? 'bg-[var(--primary)] text-white border-[var(--primary)] shadow-xs'
-                      : 'bg-[var(--surface-muted)] text-[var(--text-secondary)] border-[var(--border-subtle)] hover:bg-[var(--background)]'
-                  }`}
-                >
-                  {tab.label}
-                </button>
-              ))}
-            </div>
+        {/* MAIN VIEW MODE 1: ALL FOLDERS OVERVIEW */}
+        {selectedFolderId === 'ALL' ? (
+          <div className="space-y-6">
+            {/* Section 1: Question Folders Header */}
+            <div className="flex items-center justify-between bg-[var(--surface)] p-5 rounded-2xl border border-[var(--border)] shadow-xs">
+              <div>
+                <h2 className="text-sm font-bold text-[var(--text-primary)] flex items-center gap-2">
+                  <Folder className="w-5 h-5 text-[var(--primary)]" />
+                  Question Folders for {selectedCourse?.code || 'Course'}
+                </h2>
+                <p className="text-xs text-[var(--text-secondary)] mt-0.5">
+                  Organized unit/chapter folders containing approved questions for exam creation.
+                </p>
+              </div>
 
-            {/* Search Input */}
-            <div className="relative w-full sm:w-64">
-              <Search className="w-4 h-4 absolute left-3 top-2.5 text-[var(--text-muted)]" />
-              <input
-                type="text"
-                placeholder="Search question statement, topic..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className="w-full pl-9 pr-3 py-1.5 bg-[var(--background)] border border-[var(--border)] rounded-xl text-xs text-[var(--text-primary)] focus:ring-2 focus:ring-[var(--primary)]"
-              />
-            </div>
-          </div>
-
-          {/* Sub-Filters */}
-          <div className="flex flex-wrap items-center gap-4 pt-3 border-t border-[var(--border-subtle)] text-xs font-semibold">
-            <div className="flex items-center gap-2">
-              <span className="text-[var(--text-muted)] font-bold">Difficulty:</span>
-              <select
-                value={difficultyFilter}
-                onChange={(e) => setDifficultyFilter(e.target.value)}
-                className="px-2.5 py-1 bg-[var(--background)] border border-[var(--border)] rounded-lg text-[var(--text-primary)]"
+              <Button
+                variant="outline"
+                size="sm"
+                icon={FolderPlus}
+                onClick={handleOpenCreateFolder}
               >
-                <option value="ALL">All Difficulties</option>
-                <option value="EASY">EASY</option>
-                <option value="MEDIUM">MEDIUM</option>
-                <option value="HARD">HARD</option>
-              </select>
+                Create Unit Folder
+              </Button>
             </div>
 
-            <div className="flex items-center gap-2">
-              <span className="text-[var(--text-muted)] font-bold">Format:</span>
-              <select
-                value={typeFilter}
-                onChange={(e) => setTypeFilter(e.target.value)}
-                className="px-2.5 py-1 bg-[var(--background)] border border-[var(--border)] rounded-lg text-[var(--text-primary)]"
-              >
-                <option value="ALL">All Types</option>
-                <option value="MCQ">MCQ</option>
-                <option value="TRUE_FALSE">True / False</option>
-                <option value="SHORT_ANSWER">Short Answer</option>
-              </select>
-            </div>
+            {/* Folder Cards Grid */}
+            {isLoadingFolders ? (
+              <div className="p-12 text-center bg-[var(--surface)] rounded-2xl border border-[var(--border)]">
+                <RefreshCw className="w-6 h-6 animate-spin mx-auto text-[var(--primary)] mb-2" />
+                <p className="text-xs text-[var(--text-secondary)]">Loading unit folders...</p>
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                {/* Created Unit Folders */}
+                {folders.map((f) => {
+                  const fId = f.id || f._id;
+                  const c = f.counts || { total: 0, approved: 0, draft: 0 };
+                  return (
+                    <Card
+                      key={fId}
+                      className="p-5 rounded-2xl border border-[var(--border)] hover:border-[var(--primary)] transition-all cursor-pointer group space-y-3 shadow-xs"
+                      onClick={() => setSelectedFolderId(fId)}
+                    >
+                      <div className="flex items-start justify-between">
+                        <div className="flex items-center gap-3">
+                          <div className="p-2.5 rounded-xl bg-blue-500/10 text-blue-600 dark:text-blue-400 group-hover:bg-[var(--primary)] group-hover:text-white transition-all">
+                            <Folder className="w-5 h-5" />
+                          </div>
+                          <div>
+                            <h3 className="text-sm font-bold text-[var(--text-primary)] group-hover:text-[var(--primary)] transition-colors">
+                              {f.title}
+                            </h3>
+                            <span className="text-[11px] text-[var(--text-secondary)]">
+                              {f.description || 'Unit Chapter Folder'}
+                            </span>
+                          </div>
+                        </div>
 
-            <span className="ml-auto text-[11px] text-[var(--text-secondary)] font-bold">
-              Showing <strong>{filteredQuestions.length}</strong> questions
-            </span>
-          </div>
-        </div>
+                        <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleOpenEditFolder(f);
+                            }}
+                            className="p-1 text-[var(--text-secondary)] hover:text-[var(--primary)] rounded-md"
+                          >
+                            <Edit2 className="w-3.5 h-3.5" />
+                          </button>
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleDeleteFolder(f);
+                            }}
+                            className="p-1 text-red-500 hover:bg-red-500/10 rounded-md"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
+                      </div>
 
-        {/* Questions List */}
-        {isLoadingQuestions ? (
-          <div className="p-12 text-center text-xs text-[var(--text-secondary)] bg-[var(--surface)] rounded-2xl border border-[var(--border)] flex items-center justify-center gap-2">
-            <RefreshCw className="w-4 h-4 animate-spin text-[var(--primary)]" />
-            Loading Question Bank items...
-          </div>
-        ) : filteredQuestions.length === 0 ? (
-          <div className="p-12 text-center space-y-3 bg-[var(--surface)] rounded-2xl border border-[var(--border)] max-w-lg mx-auto">
-            <FolderKanban className="w-8 h-8 text-[var(--text-muted)] mx-auto" />
-            <h3 className="text-base font-bold text-[var(--text-primary)]">No questions available yet</h3>
-            <p className="text-xs text-[var(--text-secondary)]">
-              {questions.length === 0
-                ? 'Generate AI draft questions or import course materials to populate this subject question bank.'
-                : 'No questions match your active filter criteria.'}
-            </p>
-            <Button
-              variant="primary"
-              size="sm"
-              icon={Sparkles}
-              onClick={() => navigate(`/instructor/ai-studio?courseId=${selectedCourseId}`)}
-            >
-              Go to AI Question Studio
-            </Button>
+                      <div className="pt-2 border-t border-[var(--border-subtle)] flex items-center justify-between text-xs">
+                        <span className="font-bold text-emerald-600 dark:text-emerald-400">
+                          {c.approved} Approved
+                        </span>
+                        <span className="text-[var(--text-muted)]">{c.total} Total Items</span>
+                      </div>
+                    </Card>
+                  );
+                })}
+
+                {/* Unassigned / Unfoldered Card if questions exist */}
+                {uncategorizedFolder?.counts?.total > 0 && (
+                  <Card
+                    className="p-5 rounded-2xl border border-dashed border-amber-500/40 hover:border-amber-500 transition-all cursor-pointer group space-y-3 bg-amber-500/5"
+                    onClick={() => setSelectedFolderId('uncategorized')}
+                  >
+                    <div className="flex items-center gap-3">
+                      <div className="p-2.5 rounded-xl bg-amber-500/10 text-amber-600">
+                        <Folder className="w-5 h-5" />
+                      </div>
+                      <div>
+                        <h3 className="text-sm font-bold text-[var(--text-primary)]">
+                          Unassigned Questions
+                        </h3>
+                        <span className="text-[11px] text-[var(--text-secondary)]">
+                          Questions not assigned to a unit folder
+                        </span>
+                      </div>
+                    </div>
+
+                    <div className="pt-2 border-t border-amber-500/20 flex items-center justify-between text-xs">
+                      <span className="font-bold text-amber-600">
+                        {uncategorizedFolder?.counts?.approved || 0} Approved
+                      </span>
+                      <span className="text-[var(--text-muted)]">
+                        {uncategorizedFolder?.counts?.total || 0} Questions
+                      </span>
+                    </div>
+                  </Card>
+                )}
+              </div>
+            )}
           </div>
         ) : (
+          /* MAIN VIEW MODE 2: INSIDE A SPECIFIC FOLDER VIEW */
           <div className="space-y-4">
-            {filteredQuestions.map((q, index) => (
-              <Card key={q._id || q.id} className="relative">
-                <div className="flex flex-col lg:flex-row items-start justify-between gap-6">
-                  {/* Main Question Content */}
-                  <div className="space-y-3 flex-1 min-w-0">
-                    <div className="flex flex-wrap items-center gap-2">
-                      <span className="text-xs font-black text-[var(--primary)] uppercase">
-                        Q{index + 1} • {q.type}
-                      </span>
-                      <Badge
-                        variant={
-                          q.status === 'APPROVED'
-                            ? 'success'
-                            : q.status === 'REJECTED'
-                            ? 'error'
-                            : 'warning'
-                        }
-                      >
-                        {q.status}
-                      </Badge>
-                      {q.generationSource === 'AI_RAG' && (
-                        <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-purple-500/10 text-purple-600 dark:text-purple-400 border border-purple-500/20 flex items-center gap-1">
-                          <Sparkles className="w-3 h-3" /> AI RAG Grounded
-                        </span>
-                      )}
-                    </div>
-
-                    <p className="text-sm font-bold text-[var(--text-primary)] leading-relaxed">
-                      {q.questionText}
-                    </p>
-
-                    {/* Options for MCQ / True False */}
-                    {q.options && q.options.length > 0 && (
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-1">
-                        {q.options.map((opt, i) => {
-                          const isCorrect = opt === q.correctAnswer;
-                          return (
-                            <div
-                              key={i}
-                              className={`p-2.5 rounded-xl text-xs border ${
-                                isCorrect
-                                  ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-700 dark:text-emerald-400 font-bold'
-                                  : 'bg-[var(--background)] border-[var(--border-subtle)] text-[var(--text-primary)]'
-                              }`}
-                            >
-                              {isCorrect ? '✓ ' : `${String.fromCharCode(65 + i)}. `}
-                              {opt}
-                            </div>
-                          );
-                        })}
-                      </div>
-                    )}
-
-                    {/* Explanation */}
-                    {q.explanation && (
-                      <div className="p-3 bg-[var(--surface-muted)] rounded-xl border border-[var(--border-subtle)] text-xs text-[var(--text-secondary)] space-y-1">
-                        <span className="font-bold text-[var(--text-primary)] block">Explanation:</span>
-                        <p>{q.explanation}</p>
-                      </div>
-                    )}
-
-                    {/* Source Grounding */}
-                    {q.sourceReferences && q.sourceReferences.length > 0 && (
-                      <div className="p-3 bg-blue-500/5 rounded-xl border border-blue-500/10 text-[11px] text-[var(--text-secondary)] space-y-1">
-                        <span className="font-bold text-blue-600 dark:text-blue-400 flex items-center gap-1">
-                          <BookOpen className="w-3.5 h-3.5" /> Source Grounding:
-                        </span>
-                        {q.sourceReferences.map((ref, idx) => (
-                          <p key={idx} className="truncate">
-                            • Document: <strong className="text-[var(--text-primary)]">{ref.fileName}</strong> — "{ref.snippet}"
-                          </p>
-                        ))}
-                      </div>
-                    )}
-
-                    {/* Actions Toolbar */}
-                    <div className="flex flex-wrap items-center gap-2 pt-3 border-t border-[var(--border-subtle)]">
-                      {q.status !== 'APPROVED' && (
-                        <Button
-                          variant="primary"
-                          size="sm"
-                          icon={Check}
-                          onClick={() => handleApprove(q._id || q.id)}
-                        >
-                          Approve Question
-                        </Button>
-                      )}
-                      <Button
-                        variant="secondary"
-                        size="sm"
-                        icon={Edit2}
-                        onClick={() => openEditModal(q)}
-                      >
-                        Edit
-                      </Button>
-                      {(q.status === 'REJECTED' || q.status === 'ARCHIVED') && (
-                        <Button
-                          variant="secondary"
-                          size="sm"
-                          icon={RefreshCw}
-                          onClick={() => handleRestore(q._id || q.id)}
-                        >
-                          Restore to Draft
-                        </Button>
-                      )}
-                      {q.status !== 'REJECTED' && q.status !== 'ARCHIVED' && (
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          icon={X}
-                          onClick={() => handleReject(q._id || q.id)}
-                          className="text-amber-600 dark:text-amber-400 hover:bg-amber-500/10"
-                        >
-                          Reject
-                        </Button>
-                      )}
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        icon={Trash2}
-                        onClick={() => handleDelete(q._id || q.id)}
-                        className="text-red-600 dark:text-red-400 hover:bg-red-500/10"
-                      >
-                        Delete / Archive
-                      </Button>
-                    </div>
-                  </div>
-
-                  {/* Metadata Sidebar */}
-                  <div className="w-full lg:w-56 p-4 bg-[var(--surface-muted)] rounded-xl border border-[var(--border-subtle)] space-y-2 text-xs shrink-0">
-                    <div>
-                      <span className="text-[var(--text-muted)] block text-[10px] uppercase font-bold">
-                        Difficulty
-                      </span>
-                      <span className="font-bold text-[var(--text-primary)]">{q.difficulty}</span>
-                    </div>
-                    <div>
-                      <span className="text-[var(--text-muted)] block text-[10px] uppercase font-bold">
-                        Topic
-                      </span>
-                      <span className="font-bold text-[var(--text-primary)] truncate block">
-                        {q.topic || 'General'}
-                      </span>
-                    </div>
-                    <div>
-                      <span className="text-[var(--text-muted)] block text-[10px] uppercase font-bold">
-                        Status
-                      </span>
-                      <span
-                        className={`font-extrabold ${
-                          q.status === 'APPROVED'
-                            ? 'text-emerald-600 dark:text-emerald-400'
-                            : q.status === 'REJECTED'
-                            ? 'text-red-600 dark:text-red-400'
-                            : 'text-amber-600 dark:text-amber-400'
-                        }`}
-                      >
-                        {q.status}
-                      </span>
-                    </div>
-                  </div>
+            {/* Header / Back Bar */}
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-[var(--surface)] p-5 rounded-2xl border border-[var(--border)] shadow-xs">
+              <div className="flex items-center gap-3">
+                <button
+                  onClick={() => setSelectedFolderId('ALL')}
+                  className="p-2 rounded-xl bg-[var(--background)] border border-[var(--border)] hover:bg-[var(--primary)] hover:text-white transition-all cursor-pointer text-xs font-bold flex items-center gap-1"
+                >
+                  <ChevronLeft className="w-4 h-4" />
+                  Folders
+                </button>
+                <div>
+                  <h2 className="text-base font-bold text-[var(--text-primary)] flex items-center gap-2">
+                    <Folder className="w-5 h-5 text-blue-500" />
+                    {selectedFolderId === 'uncategorized'
+                      ? 'Unassigned Questions'
+                      : selectedFolderObj?.title || 'Unit Folder'}
+                  </h2>
+                  <p className="text-xs text-[var(--text-secondary)]">
+                    {selectedFolderId === 'uncategorized'
+                      ? 'Questions not assigned to any specific unit'
+                      : selectedFolderObj?.description || 'Approved unit questions'}
+                  </p>
                 </div>
-              </Card>
-            ))}
+              </div>
+
+              <div className="flex items-center gap-3">
+                <Badge variant="success" size="md">
+                  {selectedFolderId === 'uncategorized'
+                    ? `${uncategorizedFolder?.counts?.approved || 0} Approved`
+                    : `${selectedFolderObj?.counts?.approved || 0} Approved Questions`}
+                </Badge>
+
+                {selectedQuestionIds.length > 0 && (
+                  <Button
+                    variant="primary"
+                    size="sm"
+                    icon={Move}
+                    onClick={() => handleOpenMoveModal('BULK')}
+                  >
+                    Save {selectedQuestionIds.length} to Folder
+                  </Button>
+                )}
+              </div>
+            </div>
+
+            {/* Filter & Search Bar */}
+            <div className="bg-[var(--surface)] p-4 rounded-2xl border border-[var(--border)] flex flex-wrap items-center justify-between gap-4 shadow-xs">
+              <div className="flex items-center gap-2">
+                {['ALL', 'APPROVED', 'DRAFT', 'REJECTED'].map((st) => (
+                  <button
+                    key={st}
+                    onClick={() => setStatusFilter(st)}
+                    className={`px-3 py-1.5 text-xs font-bold rounded-xl border transition-all cursor-pointer ${
+                      statusFilter === st
+                        ? 'bg-[var(--primary)] text-white border-[var(--primary)]'
+                        : 'bg-[var(--surface-muted)] text-[var(--text-secondary)] border-[var(--border-subtle)]'
+                    }`}
+                  >
+                    {st}
+                  </button>
+                ))}
+              </div>
+
+              <div className="relative w-full sm:w-64">
+                <Search className="w-4 h-4 absolute left-3 top-2.5 text-[var(--text-muted)]" />
+                <input
+                  type="text"
+                  placeholder="Search questions..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="w-full pl-9 pr-3 py-1.5 bg-[var(--background)] border border-[var(--border)] rounded-xl text-xs text-[var(--text-primary)]"
+                />
+              </div>
+            </div>
+
+            {/* Question Cards List */}
+            {isLoadingQuestions ? (
+              <div className="p-12 text-center bg-[var(--surface)] rounded-2xl border border-[var(--border)]">
+                <RefreshCw className="w-6 h-6 animate-spin mx-auto text-[var(--primary)] mb-2" />
+                <p className="text-xs text-[var(--text-secondary)]">Loading questions...</p>
+              </div>
+            ) : filteredQuestions.length === 0 ? (
+              <div className="p-12 text-center bg-[var(--surface)] rounded-2xl border border-[var(--border)]">
+                <BookOpen className="w-8 h-8 mx-auto text-[var(--text-muted)] mb-3 opacity-50" />
+                <h3 className="text-sm font-bold text-[var(--text-primary)]">No questions in this folder</h3>
+                <p className="text-xs text-[var(--text-secondary)] mt-1">
+                  Use AI Question Studio to generate new items for this unit.
+                </p>
+              </div>
+            ) : (
+              <div className="space-y-4">
+                {filteredQuestions.map((q) => {
+                  const qId = q._id || q.id;
+                  const isSelected = selectedQuestionIds.includes(qId);
+                  return (
+                    <Card key={qId} className={`p-5 rounded-2xl border transition-all ${isSelected ? 'border-[var(--primary)] ring-1 ring-[var(--primary)]/20' : ''}`}>
+                      <div className="flex items-start gap-4">
+                        <input
+                          type="checkbox"
+                          checked={isSelected}
+                          onChange={() => toggleSelectQuestion(qId)}
+                          className="mt-1 rounded text-[var(--primary)] cursor-pointer"
+                        />
+                        <div className="flex-1 space-y-3">
+                          <div className="flex flex-wrap items-center justify-between gap-2">
+                            <div className="flex items-center gap-2">
+                              <Badge variant={q.difficulty === 'EASY' ? 'success' : q.difficulty === 'HARD' ? 'danger' : 'warning'} size="sm">
+                                {q.difficulty}
+                              </Badge>
+                              <Badge variant="outline" size="sm">{q.type}</Badge>
+                              <span className="text-xs font-semibold text-[var(--text-muted)]">{q.topic || 'General'}</span>
+                            </div>
+
+                            <div className="flex items-center gap-2">
+                              <Badge variant={q.status === 'APPROVED' ? 'success' : q.status === 'REJECTED' ? 'danger' : 'default'} size="sm">
+                                {q.status}
+                              </Badge>
+
+                              {q.status === 'DRAFT' && (
+                                <button onClick={() => handleApprove(qId)} className="px-2.5 py-1 text-xs font-bold bg-emerald-500/10 text-emerald-600 hover:bg-emerald-500 hover:text-white rounded-lg transition-all cursor-pointer">
+                                  Approve
+                                </button>
+                              )}
+
+                              <button onClick={() => handleOpenMoveModal(qId)} className="p-1.5 text-[var(--text-secondary)] hover:text-[var(--primary)] rounded-lg cursor-pointer" title="Move to folder">
+                                <Move className="w-4 h-4" />
+                              </button>
+                              <button onClick={() => openEditModal(q)} className="p-1.5 text-[var(--text-secondary)] hover:text-[var(--primary)] rounded-lg cursor-pointer" title="Edit Question">
+                                <Edit2 className="w-4 h-4" />
+                              </button>
+                            </div>
+                          </div>
+
+                          <div className="text-sm font-semibold text-[var(--text-primary)]">{q.questionText}</div>
+
+                          {q.options && q.options.length > 0 && (
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-1">
+                              {q.options.map((opt, idx) => (
+                                <div key={idx} className={`p-2 rounded-xl text-xs border ${opt === q.correctAnswer ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-700 font-bold' : 'bg-[var(--background)] border-[var(--border-subtle)] text-[var(--text-secondary)]'}`}>
+                                  <span className="font-bold mr-1.5">{String.fromCharCode(65 + idx)}.</span>{opt}
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    </Card>
+                  );
+                })}
+              </div>
+            )}
           </div>
         )}
 
-        {/* MODAL: EDIT QUESTION */}
-        {editingQuestion && (
-          <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-xs flex items-center justify-center p-4">
-            <div className="bg-[var(--surface)] border border-[var(--border)] rounded-2xl shadow-2xl p-6 max-w-lg w-full space-y-4 max-h-[90vh] overflow-y-auto">
-              <div className="flex items-center justify-between border-b border-[var(--border-subtle)] pb-3">
-                <h3 className="text-sm font-bold text-[var(--text-primary)]">Edit Question</h3>
-                <button
-                  onClick={() => setEditingQuestion(null)}
-                  className="p-1 text-[var(--text-muted)] hover:text-[var(--text-primary)]"
-                >
-                  <X className="w-4 h-4" />
+        {/* Create/Edit Folder Modal */}
+        {isFolderModalOpen && (
+          <div className="fixed inset-0 bg-black/50 backdrop-blur-xs flex items-center justify-center z-50 p-4">
+            <div className="bg-[var(--surface)] border border-[var(--border)] rounded-2xl max-w-md w-full p-6 space-y-4 shadow-xl">
+              <div className="flex items-center justify-between">
+                <h3 className="text-base font-bold text-[var(--text-primary)]">
+                  {editingFolder ? 'Edit Unit Folder' : 'Create Unit Folder'}
+                </h3>
+                <button onClick={() => setIsFolderModalOpen(false)} className="cursor-pointer">
+                  <X className="w-5 h-5 text-[var(--text-muted)]" />
                 </button>
               </div>
 
-              <div className="space-y-3 text-xs">
+              <div className="space-y-3">
                 <div>
-                  <label className="block font-bold text-[var(--text-secondary)] mb-1">
-                    Question Statement
-                  </label>
+                  <label className="text-xs font-bold text-[var(--text-secondary)] block mb-1">Unit Title</label>
+                  <input
+                    type="text"
+                    placeholder="e.g. Unit 2 - Enterprise Java"
+                    value={folderForm.title}
+                    onChange={(e) => setFolderForm({ ...folderForm, title: e.target.value })}
+                    className="w-full px-3 py-2 bg-[var(--background)] border border-[var(--border)] rounded-xl text-xs text-[var(--text-primary)]"
+                  />
+                </div>
+
+                <div>
+                  <label className="text-xs font-bold text-[var(--text-secondary)] block mb-1">Description (Optional)</label>
+                  <textarea
+                    rows={3}
+                    placeholder="Unit scope details..."
+                    value={folderForm.description}
+                    onChange={(e) => setFolderForm({ ...folderForm, description: e.target.value })}
+                    className="w-full px-3 py-2 bg-[var(--background)] border border-[var(--border)] rounded-xl text-xs text-[var(--text-primary)]"
+                  />
+                </div>
+              </div>
+
+              <div className="flex items-center justify-end gap-2 pt-2">
+                <Button variant="outline" size="sm" onClick={() => setIsFolderModalOpen(false)}>
+                  Cancel
+                </Button>
+                <Button variant="primary" size="sm" onClick={handleSaveFolder}>
+                  {editingFolder ? 'Update Unit' : 'Save Folder'}
+                </Button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Save to Folder Modal */}
+        {moveModalQuestionId && (
+          <div className="fixed inset-0 bg-black/50 backdrop-blur-xs flex items-center justify-center z-50 p-4">
+            <div className="bg-[var(--surface)] border border-[var(--border)] rounded-2xl max-w-md w-full p-6 space-y-4 shadow-xl">
+              <div className="flex items-center justify-between">
+                <h3 className="text-base font-bold text-[var(--text-primary)] flex items-center gap-2">
+                  <Move className="w-5 h-5 text-[var(--primary)]" />
+                  Save Questions to Folder
+                </h3>
+                <button onClick={() => setMoveModalQuestionId(null)} className="cursor-pointer">
+                  <X className="w-5 h-5 text-[var(--text-muted)]" />
+                </button>
+              </div>
+
+              <p className="text-xs text-[var(--text-secondary)]">
+                Select target unit folder for {moveModalQuestionId === 'BULK' ? `${selectedQuestionIds.length} question(s)` : 'this question'}:
+              </p>
+
+              <select
+                value={targetMoveFolderId}
+                onChange={(e) => setTargetMoveFolderId(e.target.value)}
+                className="w-full px-3 py-2 bg-[var(--background)] border border-[var(--border)] rounded-xl text-xs text-[var(--text-primary)] font-semibold"
+              >
+                <option value="uncategorized">Unassigned Questions</option>
+                {folders.map((f) => (
+                  <option key={f.id || f._id} value={f.id || f._id}>
+                    {f.title}
+                  </option>
+                ))}
+              </select>
+
+              <div className="flex items-center justify-end gap-2 pt-2">
+                <Button variant="outline" size="sm" onClick={() => setMoveModalQuestionId(null)}>
+                  Cancel
+                </Button>
+                <Button variant="primary" size="sm" onClick={handleConfirmMove}>
+                  Confirm Save
+                </Button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Edit Question Modal */}
+        {editingQuestion && (
+          <div className="fixed inset-0 bg-black/50 backdrop-blur-xs flex items-center justify-center z-50 p-4">
+            <div className="bg-[var(--surface)] border border-[var(--border)] rounded-2xl max-w-lg w-full p-6 space-y-4 shadow-xl max-h-[90vh] overflow-y-auto">
+              <div className="flex items-center justify-between">
+                <h3 className="text-base font-bold text-[var(--text-primary)]">Edit Question</h3>
+                <button onClick={() => setEditingQuestion(null)} className="cursor-pointer">
+                  <X className="w-5 h-5 text-[var(--text-muted)]" />
+                </button>
+              </div>
+
+              <div className="space-y-3">
+                <div>
+                  <label className="text-xs font-bold text-[var(--text-secondary)] block mb-1">Question Statement</label>
                   <textarea
                     rows={3}
                     value={editForm.questionText}
                     onChange={(e) => setEditForm({ ...editForm, questionText: e.target.value })}
-                    className="w-full p-2.5 bg-[var(--surface-muted)] border border-[var(--border)] rounded-xl text-[var(--text-primary)] focus:ring-2 focus:ring-[var(--primary)]"
+                    className="w-full px-3 py-2 bg-[var(--background)] border border-[var(--border)] rounded-xl text-xs text-[var(--text-primary)]"
                   />
                 </div>
 
                 {editingQuestion.type === 'MCQ' && (
                   <div>
-                    <label className="block font-bold text-[var(--text-secondary)] mb-1">Options</label>
+                    <label className="text-xs font-bold text-[var(--text-secondary)] block mb-1">Options</label>
                     <div className="space-y-2">
-                      {editForm.options.map((opt, i) => (
-                        <input
-                          key={i}
-                          type="text"
-                          value={opt}
-                          onChange={(e) => {
-                            const newOptions = [...editForm.options];
-                            newOptions[i] = e.target.value;
-                            setEditForm({ ...editForm, options: newOptions });
-                          }}
-                          placeholder={`Option ${String.fromCharCode(65 + i)}`}
-                          className="w-full px-3 py-1.5 bg-[var(--surface-muted)] border border-[var(--border)] rounded-xl text-[var(--text-primary)]"
-                        />
+                      {editForm.options.map((opt, idx) => (
+                        <div key={idx} className="flex items-center gap-2">
+                          <span className="text-xs font-bold w-4">{String.fromCharCode(65 + idx)}.</span>
+                          <input
+                            type="text"
+                            value={opt}
+                            onChange={(e) => {
+                              const newOpts = [...editForm.options];
+                              newOpts[idx] = e.target.value;
+                              setEditForm({ ...editForm, options: newOpts });
+                            }}
+                            className="flex-1 px-3 py-1.5 bg-[var(--background)] border border-[var(--border)] rounded-xl text-xs text-[var(--text-primary)]"
+                          />
+                        </div>
                       ))}
                     </div>
                   </div>
                 )}
-
-                <div>
-                  <label className="block font-bold text-[var(--text-secondary)] mb-1">Correct Answer</label>
-                  <input
-                    type="text"
-                    value={editForm.correctAnswer}
-                    onChange={(e) => setEditForm({ ...editForm, correctAnswer: e.target.value })}
-                    className="w-full px-3 py-1.5 bg-[var(--surface-muted)] border border-[var(--border)] rounded-xl text-[var(--text-primary)] font-semibold"
-                  />
-                </div>
-
-                <div>
-                  <label className="block font-bold text-[var(--text-secondary)] mb-1">Explanation</label>
-                  <textarea
-                    rows={2}
-                    value={editForm.explanation}
-                    onChange={(e) => setEditForm({ ...editForm, explanation: e.target.value })}
-                    className="w-full p-2.5 bg-[var(--surface-muted)] border border-[var(--border)] rounded-xl text-[var(--text-primary)]"
-                  />
-                </div>
-
-                <div className="grid grid-cols-2 gap-3">
-                  <div>
-                    <label className="block font-bold text-[var(--text-secondary)] mb-1">Difficulty</label>
-                    <select
-                      value={editForm.difficulty}
-                      onChange={(e) => setEditForm({ ...editForm, difficulty: e.target.value })}
-                      className="w-full px-3 py-1.5 bg-[var(--surface-muted)] border border-[var(--border)] rounded-xl text-[var(--text-primary)]"
-                    >
-                      <option value="EASY">EASY</option>
-                      <option value="MEDIUM">MEDIUM</option>
-                      <option value="HARD">HARD</option>
-                    </select>
-                  </div>
-                  <div>
-                    <label className="block font-bold text-[var(--text-secondary)] mb-1">Topic</label>
-                    <input
-                      type="text"
-                      value={editForm.topic}
-                      onChange={(e) => setEditForm({ ...editForm, topic: e.target.value })}
-                      className="w-full px-3 py-1.5 bg-[var(--surface-muted)] border border-[var(--border)] rounded-xl text-[var(--text-primary)]"
-                    />
-                  </div>
-                </div>
               </div>
 
-              <div className="flex justify-end gap-2 pt-3 border-t border-[var(--border-subtle)]">
-                <Button variant="secondary" size="sm" onClick={() => setEditingQuestion(null)}>
+              <div className="flex items-center justify-end gap-2 pt-2">
+                <Button variant="outline" size="sm" onClick={() => setEditingQuestion(null)}>
                   Cancel
                 </Button>
                 <Button variant="primary" size="sm" onClick={handleSaveEdit}>

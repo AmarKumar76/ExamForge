@@ -132,7 +132,7 @@ export const CourseDetailPage = () => {
 
       const res = await courseMaterialService.upload(id, formData);
       if (res.success) {
-        setActionMessage({ type: 'success', text: 'Course material uploaded successfully!' });
+        setActionMessage({ type: 'success', text: 'Course study material uploaded successfully!' });
         setShowUploadModal(false);
         setSelectedFile(null);
         setUploadTitle('');
@@ -156,7 +156,7 @@ export const CourseDetailPage = () => {
       if (res.success) {
         setActionMessage({
           type: 'success',
-          text: `Material ${nextState ? 'published' : 'unpublished'} successfully!`,
+          text: `Study material ${nextState ? 'published' : 'unpublished'} successfully!`,
         });
         await fetchMaterials();
       }
@@ -171,11 +171,11 @@ export const CourseDetailPage = () => {
       setActionMessage(null);
       const res = await courseMaterialService.archive(materialId);
       if (res.success) {
-        setActionMessage({ type: 'success', text: 'Material archived successfully!' });
+        setActionMessage({ type: 'success', text: 'Study material archived successfully!' });
         await fetchMaterials();
       }
     } catch (err) {
-      setActionMessage({ type: 'error', text: err.message || 'Failed to archive material.' });
+      setActionMessage({ type: 'error', text: err.message || 'Failed to archive study material.' });
     }
   };
 
@@ -185,12 +185,12 @@ export const CourseDetailPage = () => {
       setActionMessage(null);
       const res = await courseMaterialService.delete(materialId);
       if (res.success) {
-        setActionMessage({ type: 'success', text: 'Material deleted successfully!' });
+        setActionMessage({ type: 'success', text: 'Study material deleted successfully!' });
         setDeletingMaterialId(null);
         await fetchMaterials();
       }
     } catch (err) {
-      setActionMessage({ type: 'error', text: err.message || 'Failed to delete material.' });
+      setActionMessage({ type: 'error', text: err.message || 'Failed to delete study material.' });
     }
   };
 
@@ -330,7 +330,7 @@ export const CourseDetailPage = () => {
                 }`}
               >
                 <FileText className="w-3.5 h-3.5" />
-                Materials ({materials.length})
+                Study Materials ({materials.length})
               </button>
               <button
                 onClick={() => setActiveTab('students')}
@@ -341,7 +341,7 @@ export const CourseDetailPage = () => {
                 }`}
               >
                 <Users className="w-3.5 h-3.5" />
-                Roster ({course.studentIds?.length || 0})
+                Students ({course.studentIds?.length || 0})
               </button>
             </div>
 
@@ -352,7 +352,7 @@ export const CourseDetailPage = () => {
                 icon={Upload}
                 onClick={() => setShowUploadModal(true)}
               >
-                Upload Material
+                Upload Study Material
               </Button>
             )}
           </div>
@@ -382,7 +382,29 @@ export const CourseDetailPage = () => {
                 </div>
               </Card>
 
-              <Card title={`Course Learning Materials (${materials.length})`}>
+              {/* Real DB Course Statistics Grid */}
+              <Card title="Course Statistics">
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-center">
+                  <div className="p-3 bg-[var(--background)] rounded-xl border border-[var(--border-subtle)]">
+                    <span className="text-[10px] text-[var(--text-secondary)] block font-semibold">Questions</span>
+                    <strong className="text-base text-[var(--text-primary)] font-extrabold">{course.stats?.questionsCount || 0}</strong>
+                  </div>
+                  <div className="p-3 bg-[var(--background)] rounded-xl border border-[var(--border-subtle)]">
+                    <span className="text-[10px] text-[var(--text-secondary)] block font-semibold">Study Materials</span>
+                    <strong className="text-base text-[var(--text-primary)] font-extrabold">{materials.length || course.stats?.materialsCount || 0}</strong>
+                  </div>
+                  <div className="p-3 bg-[var(--background)] rounded-xl border border-[var(--border-subtle)]">
+                    <span className="text-[10px] text-[var(--text-secondary)] block font-semibold">Exams</span>
+                    <strong className="text-base text-[var(--text-primary)] font-extrabold">{course.stats?.examsCount || 0}</strong>
+                  </div>
+                  <div className="p-3 bg-[var(--background)] rounded-xl border border-[var(--border-subtle)]">
+                    <span className="text-[10px] text-[var(--text-secondary)] block font-semibold">Students</span>
+                    <strong className="text-base text-[var(--text-primary)] font-extrabold">{course.studentIds?.length || 0}</strong>
+                  </div>
+                </div>
+              </Card>
+
+              <Card title={`Course Study Materials (${materials.length})`}>
                 {materials.length > 0 ? (
                   <div className="space-y-3">
                     {materials.slice(0, 3).map((mat) => (
@@ -403,7 +425,7 @@ export const CourseDetailPage = () => {
                     ))}
                   </div>
                 ) : (
-                  <p className="text-xs text-[var(--text-muted)] text-center py-4">No published materials uploaded yet.</p>
+                  <p className="text-xs text-[var(--text-muted)] text-center py-4">No published study materials uploaded yet.</p>
                 )}
               </Card>
             </div>
@@ -428,16 +450,16 @@ export const CourseDetailPage = () => {
           </div>
         )}
 
-        {/* MATERIALS TAB */}
+        {/* STUDY MATERIALS TAB */}
         {activeTab === 'materials' && (
           <div className="space-y-6">
             <div className="flex items-center justify-between">
               <h2 className="text-base font-bold text-[var(--text-primary)]">
-                Course Learning Materials {user?.role === 'STUDENT' && '(Published Only)'}
+                Course Study Materials {user?.role === 'STUDENT' && '(Published Only)'}
               </h2>
               {isStaff && (
                 <Button variant="primary" size="sm" icon={Upload} onClick={() => setShowUploadModal(true)}>
-                  Upload Material
+                  Upload Study Material
                 </Button>
               )}
             </div>
@@ -445,22 +467,22 @@ export const CourseDetailPage = () => {
             {isMaterialsLoading && (
               <div className="flex flex-col items-center justify-center min-h-[250px] space-y-3 bg-[var(--surface)] rounded-2xl border border-[var(--border)] p-6">
                 <div className="w-8 h-8 border-4 border-[var(--primary)] border-t-transparent rounded-full animate-spin"></div>
-                <p className="text-xs font-semibold text-[var(--text-secondary)]">Loading course materials...</p>
+                <p className="text-xs font-semibold text-[var(--text-secondary)]">Loading study materials...</p>
               </div>
             )}
 
             {!isMaterialsLoading && materials.length === 0 && (
               <div className="p-12 text-center space-y-4 bg-[var(--surface)] rounded-2xl border border-[var(--border)] max-w-lg mx-auto">
                 <FileText className="w-8 h-8 text-[var(--text-muted)] mx-auto" />
-                <h3 className="text-base font-bold text-[var(--text-primary)]">No Materials Found</h3>
+                <h3 className="text-base font-bold text-[var(--text-primary)]">No Study Materials Found</h3>
                 <p className="text-xs text-[var(--text-secondary)]">
                   {isStaff
-                    ? 'No materials uploaded yet. Click Upload Material to add learning documents (PDF, DOCX, PPTX).'
-                    : 'No published materials available for this course yet.'}
+                    ? 'No study materials uploaded yet. Click Upload Study Material to add learning documents (PDF, DOCX, PPTX).'
+                    : 'No published study materials available for this course yet.'}
                 </p>
                 {isStaff && (
                   <Button variant="primary" size="sm" icon={Upload} onClick={() => setShowUploadModal(true)}>
-                    Upload Material
+                    Upload Study Material
                   </Button>
                 )}
               </div>
@@ -570,9 +592,9 @@ export const CourseDetailPage = () => {
           </div>
         )}
 
-        {/* STUDENTS ROSTER TAB */}
+        {/* STUDENTS TAB */}
         {activeTab === 'students' && (
-          <Card title={`Enrolled Candidates (${course.studentIds?.length || 0})`}>
+          <Card title={`Enrolled Students (${course.studentIds?.length || 0})`}>
             {course.studentIds && course.studentIds.length > 0 ? (
               <div className="space-y-3 max-h-96 overflow-y-auto pr-1">
                 {course.studentIds.map((stud) => (
@@ -597,7 +619,7 @@ export const CourseDetailPage = () => {
               </div>
             ) : (
               <div className="p-8 text-center text-xs text-[var(--text-muted)]">
-                No students enrolled in this course roster yet.
+                No students enrolled in this course yet.
               </div>
             )}
           </Card>
@@ -608,7 +630,7 @@ export const CourseDetailPage = () => {
           <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-xs flex items-center justify-center p-4">
             <div className="bg-[var(--surface)] border border-[var(--border)] rounded-2xl shadow-2xl p-6 max-w-md w-full space-y-5 animate-fadeIn">
               <div className="flex items-center justify-between border-b border-[var(--border-subtle)] pb-3">
-                <h3 className="text-base font-bold text-[var(--text-primary)]">Upload Course Material</h3>
+                <h3 className="text-base font-bold text-[var(--text-primary)]">Upload Study Material</h3>
                 <button onClick={() => setShowUploadModal(false)} className="text-[var(--text-muted)] hover:text-[var(--text-primary)] cursor-pointer">
                   <X className="w-5 h-5" />
                 </button>
@@ -638,7 +660,7 @@ export const CourseDetailPage = () => {
                 </div>
 
                 <div>
-                  <label className="font-bold text-[var(--text-primary)] block mb-1">Material Title</label>
+                  <label className="font-bold text-[var(--text-primary)] block mb-1">Study Material Title</label>
                   <input
                     type="text"
                     required
@@ -692,7 +714,7 @@ export const CourseDetailPage = () => {
                 <Trash2 className="w-6 h-6" />
               </div>
               <div>
-                <h3 className="text-base font-bold text-[var(--text-primary)]">Delete Course Material</h3>
+                <h3 className="text-base font-bold text-[var(--text-primary)]">Delete Study Material</h3>
                 <p className="text-xs text-[var(--text-secondary)] mt-1">
                   Are you sure you want to permanently delete this learning document? This action cannot be undone.
                 </p>
@@ -708,7 +730,7 @@ export const CourseDetailPage = () => {
                   onClick={() => handleDelete(deletingMaterialId)}
                   className="bg-red-600 hover:bg-red-700 text-white"
                 >
-                  Delete Material
+                  Delete Study Material
                 </Button>
               </div>
             </div>

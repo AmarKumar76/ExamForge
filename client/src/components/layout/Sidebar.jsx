@@ -83,8 +83,12 @@ export const Sidebar = () => {
   return (
     <aside className="w-64 bg-[var(--surface)] border-r border-[var(--border)] flex flex-col h-screen sticky top-0 z-30 select-none">
       {/* Brand Logo Header */}
-      <div className="p-5 border-b border-[var(--border-subtle)] flex items-center gap-3">
-        <div className="w-9 h-9 rounded-[var(--radius-md)] bg-[var(--primary)] text-white flex items-center justify-center font-bold text-lg shadow-sm">
+      <Link
+        to="/"
+        className="p-5 border-b border-[var(--border-subtle)] flex items-center gap-3 group hover:bg-[var(--surface-muted)]/40 transition-colors cursor-pointer"
+        title="Go to ExamForge Landing Page"
+      >
+        <div className="w-9 h-9 rounded-[var(--radius-md)] bg-[var(--primary)] text-white flex items-center justify-center font-bold text-lg shadow-sm group-hover:scale-105 transition-transform">
           EF
         </div>
         <div>
@@ -95,7 +99,7 @@ export const Sidebar = () => {
             {formatRoleLabel(role)} Workspace
           </span>
         </div>
-      </div>
+      </Link>
 
       {/* Navigation List */}
       <nav className="flex-1 overflow-y-auto px-3 py-4 space-y-1">

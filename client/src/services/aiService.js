@@ -11,9 +11,12 @@ export const aiService = {
     return res.data;
   },
 
-  getQuestions: async (courseId, status = '') => {
-    const query = status ? `?status=${status}` : '';
-    const res = await api.get(`/courses/${courseId}/ai/questions${query}`);
+  getQuestions: async (courseId, status = '', folderId = '') => {
+    const params = new URLSearchParams();
+    if (status) params.append('status', status);
+    if (folderId) params.append('folderId', folderId);
+    const queryString = params.toString() ? `?${params.toString()}` : '';
+    const res = await api.get(`/courses/${courseId}/ai/questions${queryString}`);
     return res;
   },
 

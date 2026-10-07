@@ -66,10 +66,12 @@ export const StudentDashboard = () => {
 
   const activeExams = studentExams.filter((e) => (!e.myAttempt || e.myAttempt.status === 'IN_PROGRESS') && e.computedStatus === 'ACTIVE');
   const upcomingExams = studentExams.filter((e) => (!e.myAttempt) && e.computedStatus === 'SCHEDULED');
-  const completedExams = studentExams.filter((e) => e.myAttempt && (e.myAttempt.status === 'SUBMITTED' || e.myAttempt.status === 'GRADED'));
+  const completedExams = studentExams.filter((e) => e.myAttempt && (e.myAttempt.status === 'SUBMITTED' || e.myAttempt.status === 'GRADED' || e.myAttempt.status === 'PUBLISHED'));
+  
+  const publishedExams = completedExams.filter((e) => e.myAttempt?.status === 'PUBLISHED');
 
-  const scoreSum = completedExams.reduce((acc, curr) => acc + (curr.myAttempt?.percentage || 0), 0);
-  const averagePercentage = completedExams.length > 0 ? Math.round(scoreSum / completedExams.length) : 0;
+  const scoreSum = publishedExams.reduce((acc, curr) => acc + (curr.myAttempt?.percentage || 0), 0);
+  const averagePercentage = publishedExams.length > 0 ? Math.round(scoreSum / publishedExams.length) : 0;
 
   return (
     <AppShell title="Student Portal">
@@ -199,10 +201,16 @@ export const StudentDashboard = () => {
                         </div>
                         <div className="flex items-center gap-3">
                           <div className="text-right">
-                            <span className="text-sm font-bold text-[var(--primary)] block">{attempt.percentage}%</span>
-                            <Badge variant={attempt.passed ? 'success' : 'danger'}>
-                              {attempt.passed ? 'Passed' : 'Needs Practice'}
-                            </Badge>
+                            {attempt.status === 'PUBLISHED' ? (
+                              <>
+                                <span className="text-sm font-bold text-[var(--primary)] block">{attempt.percentage}%</span>
+                                <Badge variant={attempt.passed ? 'success' : 'danger'}>
+                                  {attempt.passed ? 'Passed' : 'Needs Practice'}
+                                </Badge>
+                              </>
+                            ) : (
+                              <Badge variant="warning">Under Review</Badge>
+                            )}
                           </div>
                           <Button
                             variant="ghost"
@@ -223,7 +231,7 @@ export const StudentDashboard = () => {
 
           {/* Right Column: AI Preparation Card */}
           <div className="lg:col-span-5 space-y-6">
-            <AIPreparationCard completedExams={completedExams} />
+            <AIPreparationCard completedExams={publishedExams} />
           </div>
         </div>
       </div>

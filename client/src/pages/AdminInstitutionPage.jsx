@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { AppShell } from '../components/layout/AppShell';
 import { Button } from '../components/ui/Button';
 import { Badge } from '../components/ui/Badge';
@@ -21,6 +22,7 @@ import {
 
 export const AdminInstitutionPage = () => {
   const { user: currentUser } = useAuth();
+  const navigate = useNavigate();
 
   const [institutions, setInstitutions] = useState([]);
   const [courses, setCourses] = useState([]);
@@ -28,6 +30,7 @@ export const AdminInstitutionPage = () => {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState(null);
   const [success, setSuccess] = useState(null);
+  const [statusFilter, setStatusFilter] = useState('ACTIVE');
 
   // Modals
   const [showCreateModal, setShowCreateModal] = useState(false);
@@ -39,6 +42,11 @@ export const AdminInstitutionPage = () => {
 
   const [selectedInst, setSelectedInst] = useState(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  const filteredInstitutions = institutions.filter((inst) => {
+    if (statusFilter === 'ALL') return true;
+    return inst.status === statusFilter;
+  });
 
   const loadData = async () => {
     try {
@@ -169,16 +177,38 @@ export const AdminInstitutionPage = () => {
           </div>
         )}
 
+        {/* Status Filter Bar */}
+        <div className="bg-[var(--surface)] p-4 rounded-2xl border border-[var(--border)] flex items-center justify-between">
+          <div className="flex p-1 bg-[var(--surface-muted)] rounded-xl border border-[var(--border-subtle)]">
+            {['ACTIVE', 'ARCHIVED', 'ALL'].map((st) => (
+              <button
+                key={st}
+                onClick={() => setStatusFilter(st)}
+                className={`px-4 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                  statusFilter === st
+                    ? 'bg-[var(--surface)] text-[var(--primary)] shadow-xs'
+                    : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)]'
+                }`}
+              >
+                {st === 'ALL' ? 'All Institutions' : st.charAt(0) + st.slice(1).toLowerCase()}
+              </button>
+            ))}
+          </div>
+          <span className="text-xs font-semibold text-[var(--text-secondary)]">
+            Total: <strong>{filteredInstitutions.length}</strong>
+          </span>
+        </div>
+
         {/* Institution Cards */}
         {isLoading ? (
           <div className="p-12 text-center text-xs text-[var(--text-secondary)] bg-[var(--surface)] rounded-2xl border border-[var(--border)]">
             Loading database institution directory...
           </div>
-        ) : institutions.length === 0 ? (
+        ) : filteredInstitutions.length === 0 ? (
           <div className="p-12 text-center space-y-3 bg-[var(--surface)] rounded-2xl border border-[var(--border)] max-w-lg mx-auto">
             <Building2 className="w-8 h-8 text-[var(--text-muted)] mx-auto" />
-            <h3 className="text-base font-bold text-[var(--text-primary)]">No Institutions Configured</h3>
-            <p className="text-xs text-[var(--text-secondary)]">Create an institution to manage departments and courses.</p>
+            <h3 className="text-base font-bold text-[var(--text-primary)]">No Institutions Found</h3>
+            <p className="text-xs text-[var(--text-secondary)]">Create an institution to manage courses and academic departments.</p>
             {currentUser?.role === 'SUPER_ADMIN' && (
               <Button variant="primary" size="sm" icon={PlusCircle} onClick={() => setShowCreateModal(true)}>
                 Create Institution
@@ -186,82 +216,92 @@ export const AdminInstitutionPage = () => {
             )}
           </div>
         ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            {institutions.map((inst) => {
-              const instId = inst.id || inst._id;
-              const instCourses = courses.filter((c) => (c.institutionId?._id || c.institutionId) === instId);
-              const instUsers = users.filter((u) => (u.institutionId?._id || u.institutionId) === instId);
-              const instInstructors = instUsers.filter((u) => u.role === 'INSTRUCTOR');
-              const instStudents = instUsers.filter((u) => u.role === 'STUDENT');
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {filteredInstitutions.map((inst) => {
+              const instId = (inst.id || inst._id)?.toString();
+              const instCourses = courses.filter(
+                (c) => (c.institutionId?.id || c.institutionId?._id || c.institutionId)?.toString() === instId
+              );
+
+              const distinctInstIds = new Set();
+              const distinctStudIds = new Set();
+
+              instCourses.forEach((c) => {
+                c.instructorIds?.forEach((i) => {
+                  const id = (i.id || i._id || i)?.toString();
+                  if (id) distinctInstIds.add(id);
+                });
+                c.studentIds?.forEach((s) => {
+                  const id = (s.id || s._id || s)?.toString();
+                  if (id) distinctStudIds.add(id);
+                });
+              });
+
+              users.forEach((u) => {
+                const uInstId = (u.institutionId?.id || u.institutionId?._id || u.institutionId)?.toString();
+                if (uInstId === instId) {
+                  const uid = (u.id || u._id)?.toString();
+                  if (u.role === 'INSTRUCTOR' && uid) distinctInstIds.add(uid);
+                  if (u.role === 'STUDENT' && uid) distinctStudIds.add(uid);
+                }
+              });
 
               return (
                 <div
                   key={instId}
-                  className="bg-[var(--surface)] p-5 rounded-2xl border border-[var(--border)] shadow-xs space-y-4 flex flex-col justify-between"
+                  className="bg-[var(--surface)] p-5 rounded-2xl border border-[var(--border)] shadow-xs flex flex-col justify-between min-w-0 w-full h-full overflow-hidden hover:border-[var(--primary-border)] transition-all space-y-4"
                 >
-                  <div className="space-y-4">
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-3">
-                        <div className="w-10 h-10 rounded-xl bg-[var(--primary-light)] text-[var(--primary)] flex items-center justify-center font-bold text-sm">
-                          {inst.code}
+                  <div className="space-y-4 min-w-0 w-full">
+                    <div className="flex items-start justify-between gap-3 min-w-0 w-full">
+                      <div className="flex items-start gap-3 min-w-0 flex-1">
+                        <div className="w-11 h-11 rounded-xl bg-[var(--primary-light)] text-[var(--primary)] flex items-center justify-center font-extrabold text-xs shrink-0 uppercase tracking-wider border border-[var(--primary-border)] overflow-hidden text-center px-1">
+                          {(inst.code && inst.code.length <= 4)
+                            ? inst.code
+                            : (inst.code?.substring(0, 3) || inst.name?.substring(0, 2) || 'IN')}
                         </div>
-                        <div>
-                          <h3 className="text-base font-bold text-[var(--text-primary)]">{inst.name}</h3>
-                          <span className="text-[11px] text-[var(--text-secondary)] block">Code: {inst.code}</span>
-                        </div>
-                      </div>
-                      <Badge variant={inst.status === 'ACTIVE' ? 'success' : 'neutral'}>{inst.status}</Badge>
-                    </div>
-
-                    <div className="grid grid-cols-3 gap-2 p-3 bg-[var(--background)] rounded-xl border border-[var(--border-subtle)] text-[11px] text-center">
-                      <div>
-                        <span className="text-[var(--text-secondary)] block">Courses</span>
-                        <strong className="text-xs text-[var(--text-primary)]">{instCourses.length}</strong>
-                      </div>
-                      <div>
-                        <span className="text-[var(--text-secondary)] block">Faculty</span>
-                        <strong className="text-xs text-[var(--text-primary)]">{instInstructors.length}</strong>
-                      </div>
-                      <div>
-                        <span className="text-[var(--text-secondary)] block">Students</span>
-                        <strong className="text-xs text-[var(--text-primary)]">{instStudents.length}</strong>
-                      </div>
-                    </div>
-
-                    <div className="space-y-2">
-                      <span className="text-xs font-bold text-[var(--text-primary)] block">Academic Departments:</span>
-                      <div className="flex flex-wrap gap-1.5">
-                        {inst.departments?.map((dept, i) => (
-                          <span key={i} className="text-[11px] px-2.5 py-1 rounded-md bg-[var(--surface-muted)] text-[var(--text-secondary)] border border-[var(--border-subtle)] font-medium">
-                            {dept}
+                        <div className="min-w-0 flex-1">
+                          <h3 className="text-base font-bold text-[var(--text-primary)] min-w-0 break-words leading-tight">
+                            {inst.name}
+                          </h3>
+                          <span className="text-[11px] text-[var(--text-secondary)] block mt-0.5 font-semibold break-all">
+                            Code: {inst.code}
                           </span>
-                        ))}
+                        </div>
+                      </div>
+                      <Badge variant={inst.status === 'ACTIVE' ? 'success' : 'neutral'} className="shrink-0">
+                        {inst.status}
+                      </Badge>
+                    </div>
+
+                    <div className="grid grid-cols-3 gap-2 p-3 bg-[var(--background)] rounded-xl border border-[var(--border-subtle)] text-[11px] text-center min-w-0">
+                      <div>
+                        <span className="text-[var(--text-secondary)] block text-[10px]">Courses</span>
+                        <strong className="text-xs text-[var(--text-primary)] font-bold">{instCourses.length}</strong>
+                      </div>
+                      <div>
+                        <span className="text-[var(--text-secondary)] block text-[10px]">Instructors</span>
+                        <strong className="text-xs text-[var(--text-primary)] font-bold">{distinctInstIds.size}</strong>
+                      </div>
+                      <div>
+                        <span className="text-[var(--text-secondary)] block text-[10px]">Students</span>
+                        <strong className="text-xs text-[var(--text-primary)] font-bold">{distinctStudIds.size}</strong>
                       </div>
                     </div>
                   </div>
 
-                  <div className="pt-3 border-t border-[var(--border-subtle)] flex items-center justify-between text-xs">
-                    <Button variant="ghost" size="sm" icon={Eye} onClick={() => setSelectedInst({ ...inst, courses: instCourses, instructors: instInstructors, students: instStudents })}>
-                      Overview Map
+                  <div className="pt-3 border-t border-[var(--border-subtle)] flex items-center justify-between gap-2 text-xs">
+                    <Button
+                      variant="primary"
+                      size="sm"
+                      onClick={() => navigate(`/admin/institutions/${instId}`)}
+                    >
+                      View Institution →
                     </Button>
-                    <div className="flex items-center gap-1">
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        icon={PlusCircle}
-                        onClick={() => {
-                          setTargetInstId(instId);
-                          setShowDeptModal(true);
-                        }}
-                      >
-                        Add Dept
+                    {currentUser?.role === 'SUPER_ADMIN' && (
+                      <Button variant="ghost" size="sm" icon={Archive} onClick={() => handleArchive(instId)}>
+                        Archive
                       </Button>
-                      {currentUser?.role === 'SUPER_ADMIN' && (
-                        <Button variant="ghost" size="sm" icon={Archive} onClick={() => handleArchive(instId)}>
-                          Archive
-                        </Button>
-                      )}
-                    </div>
+                    )}
                   </div>
                 </div>
               );

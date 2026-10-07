@@ -35,4 +35,25 @@ export const userService = {
   updateStatus: async (id, status) => {
     return api.patch(`/users/${id}/status`, { status });
   },
+
+  /**
+   * Update current user profile
+   */
+  updateProfile: async (data) => {
+    return api.put('/users/profile', data);
+  },
+
+  /**
+   * Change current user password
+   */
+  changePassword: async (data) => {
+    return api.put('/users/password', data);
+  },
+
+  /**
+   * Update current user notification preferences
+   */
+  updatePreferences: async (data) => {
+    return api.put('/users/preferences', data);
+  },
 };

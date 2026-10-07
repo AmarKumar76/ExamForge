@@ -17,11 +17,13 @@ import { ProfilePage } from './pages/ProfilePage';
 import { StudentDashboard } from './pages/StudentDashboard';
 import { StudentResultPage } from './pages/StudentResultPage';
 import { AIPreparationViewPage } from './pages/AIPreparationViewPage';
+import { StudentStudyPlanPage } from './pages/StudentStudyPlanPage';
 import { PracticeHistoryPage } from './pages/PracticeHistoryPage';
 import { GeneratePracticePage } from './pages/GeneratePracticePage';
 import { PracticeResultPage } from './pages/PracticeResultPage';
 import { LiveExamPage } from './pages/LiveExamPage';
 import { SubmissionConfirmationPage } from './pages/SubmissionConfirmationPage';
+import { StudentNotificationsPage } from './pages/StudentNotificationsPage';
 
 // Instructor Portal Pages
 import { InstructorDashboard } from './pages/InstructorDashboard';
@@ -32,6 +34,10 @@ import { QuestionsPreviewPage } from './pages/QuestionsPreviewPage';
 import { CreateExamPage } from './pages/CreateExamPage';
 import { BlueprintPage } from './pages/BlueprintPage';
 import { InstructorExamAnalyticsPage } from './pages/InstructorExamAnalyticsPage';
+import { InstructorResultsPage } from './pages/InstructorResultsPage';
+import { InstructorStudentsPage } from './pages/InstructorStudentsPage';
+import { InstructorReportsPage } from './pages/InstructorReportsPage';
+import { InstructorSettingsPage } from './pages/InstructorSettingsPage';
 import { ProctoringDashboardPage } from './pages/ProctoringDashboardPage';
 
 // Course Management Pages
@@ -43,6 +49,7 @@ import { StudentCoursesPage } from './pages/StudentCoursesPage';
 import { AdminPanelPage } from './pages/AdminPanelPage';
 import { AdminUserManagementPage } from './pages/AdminUserManagementPage';
 import { AdminInstitutionPage } from './pages/AdminInstitutionPage';
+import { AdminInstitutionDetailPage } from './pages/AdminInstitutionDetailPage';
 import { AdminCourseManagementPage } from './pages/AdminCourseManagementPage';
 import { AdminAnalyticsPage } from './pages/AdminAnalyticsPage';
 import { AdminLogsPage } from './pages/AdminLogsPage';
@@ -142,7 +149,7 @@ export const App = () => {
               path="/student/study-plan" 
               element={
                 <ProtectedRoute allowedRoles={['STUDENT', 'INSTRUCTOR', 'SUPER_ADMIN', 'INSTITUTION_ADMIN']}>
-                  <AIPreparationViewPage />
+                  <StudentStudyPlanPage />
                 </ProtectedRoute>
               } 
             />
@@ -150,7 +157,7 @@ export const App = () => {
               path="/student/notifications" 
               element={
                 <ProtectedRoute allowedRoles={['STUDENT', 'INSTRUCTOR', 'SUPER_ADMIN', 'INSTITUTION_ADMIN']}>
-                  <PlaceholderPage title="Student Notifications" role="Student" moduleName="Notifications" />
+                  <StudentNotificationsPage />
                 </ProtectedRoute>
               } 
             />
@@ -288,7 +295,7 @@ export const App = () => {
               path="/instructor/results" 
               element={
                 <ProtectedRoute allowedRoles={['INSTRUCTOR']}>
-                  <InstructorExamAnalyticsPage />
+                  <InstructorResultsPage />
                 </ProtectedRoute>
               } 
             />
@@ -304,7 +311,7 @@ export const App = () => {
               path="/instructor/students" 
               element={
                 <ProtectedRoute allowedRoles={['INSTRUCTOR']}>
-                  <PlaceholderPage title="Enrolled Students" role="Instructor" moduleName="Students" />
+                  <InstructorStudentsPage />
                 </ProtectedRoute>
               } 
             />
@@ -312,7 +319,7 @@ export const App = () => {
               path="/instructor/reports" 
               element={
                 <ProtectedRoute allowedRoles={['INSTRUCTOR']}>
-                  <PlaceholderPage title="Exam Reports" role="Instructor" moduleName="Reports" />
+                  <InstructorReportsPage />
                 </ProtectedRoute>
               } 
             />
@@ -320,7 +327,7 @@ export const App = () => {
               path="/instructor/settings" 
               element={
                 <ProtectedRoute allowedRoles={['INSTRUCTOR']}>
-                  <PlaceholderPage title="Instructor Settings" role="Instructor" moduleName="Settings" />
+                  <InstructorSettingsPage />
                 </ProtectedRoute>
               } 
             />
@@ -355,6 +362,14 @@ export const App = () => {
               element={
                 <ProtectedRoute allowedRoles={['SUPER_ADMIN', 'INSTITUTION_ADMIN']}>
                   <AdminInstitutionPage />
+                </ProtectedRoute>
+              } 
+            />
+            <Route 
+              path="/admin/institutions/:institutionId" 
+              element={
+                <ProtectedRoute allowedRoles={['SUPER_ADMIN', 'INSTITUTION_ADMIN']}>
+                  <AdminInstitutionDetailPage />
                 </ProtectedRoute>
               } 
             />
