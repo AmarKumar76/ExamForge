@@ -1,5 +1,5 @@
 import React from 'react';
-import { BrowserRouter, Routes, Route } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { ThemeProvider } from './context/ThemeContext';
 import { AuthProvider } from './context/AuthContext';
 import { ProtectedRoute } from './routes/ProtectedRoute';
@@ -8,7 +8,8 @@ import { ProtectedRoute } from './routes/ProtectedRoute';
 import { LandingPage } from './pages/LandingPage';
 import { FeaturesPage } from './pages/FeaturesPage';
 import { LoginPage } from './pages/LoginPage';
-import { RegisterPage } from './pages/RegisterPage';
+import { ForgotPasswordPage } from './pages/ForgotPasswordPage';
+import { ResetPasswordPage } from './pages/ResetPasswordPage';
 import { NotFoundPage } from './pages/NotFoundPage';
 import { PlaceholderPage } from './pages/PlaceholderPage';
 import { ProfilePage } from './pages/ProfilePage';
@@ -32,6 +33,9 @@ import { QuestionBankPage } from './pages/QuestionBankPage';
 import { QuestionConfigPage } from './pages/QuestionConfigPage';
 import { QuestionsPreviewPage } from './pages/QuestionsPreviewPage';
 import { CreateExamPage } from './pages/CreateExamPage';
+import { InstructorExamMonitoringPage } from './pages/InstructorExamMonitoringPage';
+import { InstructorExamMonitoringDetailPage } from './pages/InstructorExamMonitoringDetailPage';
+import { InstructorStudentMonitoringDetailPage } from './pages/InstructorStudentMonitoringDetailPage';
 import { BlueprintPage } from './pages/BlueprintPage';
 import { InstructorExamAnalyticsPage } from './pages/InstructorExamAnalyticsPage';
 import { InstructorResultsPage } from './pages/InstructorResultsPage';
@@ -68,7 +72,10 @@ export const App = () => {
             <Route path="/" element={<LandingPage />} />
             <Route path="/features" element={<FeaturesPage />} />
             <Route path="/login" element={<LoginPage />} />
-            <Route path="/register" element={<RegisterPage />} />
+            <Route path="/register" element={<Navigate to="/login" replace />} />
+            <Route path="/signup" element={<Navigate to="/login" replace />} />
+            <Route path="/forgot-password" element={<ForgotPasswordPage />} />
+            <Route path="/reset-password" element={<ResetPasswordPage />} />
             <Route 
               path="/profile" 
               element={
@@ -288,6 +295,30 @@ export const App = () => {
               element={
                 <ProtectedRoute allowedRoles={['INSTRUCTOR']}>
                   <BlueprintPage />
+                </ProtectedRoute>
+              } 
+            />
+            <Route 
+              path="/instructor/exam-monitoring" 
+              element={
+                <ProtectedRoute allowedRoles={['INSTRUCTOR', 'SUPER_ADMIN', 'INSTITUTION_ADMIN']}>
+                  <InstructorExamMonitoringPage />
+                </ProtectedRoute>
+              } 
+            />
+            <Route 
+              path="/instructor/exam-monitoring/:examId" 
+              element={
+                <ProtectedRoute allowedRoles={['INSTRUCTOR', 'SUPER_ADMIN', 'INSTITUTION_ADMIN']}>
+                  <InstructorExamMonitoringDetailPage />
+                </ProtectedRoute>
+              } 
+            />
+            <Route 
+              path="/instructor/exam-monitoring/:examId/student/:studentId" 
+              element={
+                <ProtectedRoute allowedRoles={['INSTRUCTOR', 'SUPER_ADMIN', 'INSTITUTION_ADMIN']}>
+                  <InstructorStudentMonitoringDetailPage />
                 </ProtectedRoute>
               } 
             />

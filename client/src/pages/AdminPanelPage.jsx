@@ -5,7 +5,7 @@ import { Card } from '../components/ui/Card';
 import { StatCard } from '../components/ui/StatCard';
 import { Button } from '../components/ui/Button';
 import { Badge } from '../components/ui/Badge';
-import { adminMockData } from '../mockData';
+import { adminService } from '../services/adminService';
 import { institutionService } from '../services/institutionService';
 import { courseService } from '../services/courseService';
 import { useAuth } from '../context/AuthContext';
@@ -33,6 +33,7 @@ export const AdminPanelPage = () => {
   // Real Data States
   const [institutions, setInstitutions] = useState([]);
   const [courses, setCourses] = useState([]);
+  const [analytics, setAnalytics] = useState(null);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState(null);
   const [actionSuccess, setActionSuccess] = useState(null);
@@ -61,9 +62,10 @@ export const AdminPanelPage = () => {
       setIsLoading(true);
       setError(null);
 
-      const [instRes, courseRes] = await Promise.all([
+      const [instRes, courseRes, analyticsRes] = await Promise.all([
         institutionService.getAll().catch(() => ({ success: false, data: { institutions: [] } })),
         courseService.getAll().catch(() => ({ success: false, data: { courses: [] } })),
+        adminService.getAnalytics().catch((err) => ({ success: false, error: err.message || 'Unable to load statistics' })),
       ]);
 
       if (instRes.success && Array.isArray(instRes.data?.institutions)) {
@@ -75,6 +77,12 @@ export const AdminPanelPage = () => {
 
       if (courseRes.success && Array.isArray(courseRes.data?.courses)) {
         setCourses(courseRes.data.courses);
+      }
+
+      if (analyticsRes.success && analyticsRes.data) {
+        setAnalytics(analyticsRes.data);
+      } else if (analyticsRes.error) {
+        setError('Unable to load statistics');
       }
     } catch (err) {
       setError(err.message || 'Failed to load administration data.');
@@ -162,8 +170,6 @@ export const AdminPanelPage = () => {
     }
   };
 
-  const data = adminMockData;
-
   return (
     <AppShell title="Admin Management Panel">
       <div className="space-y-6 pb-12">
@@ -238,25 +244,47 @@ export const AdminPanelPage = () => {
         {activeTab === 'overview' && (
           <div className="space-y-6">
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-              <StatCard title="Total Users" value={data.stats.totalUsers} icon={Users} />
-              <StatCard title="Institutions" value={institutions.length || data.stats.institutionsCount} icon={Building2} />
-              <StatCard title="Active Courses" value={courses.length || 12} icon={BookOpen} />
-              <StatCard title="System Alerts" value={data.stats.systemAlertsCount} icon={AlertCircle} />
+              <StatCard
+                title="Total Users"
+                value={isLoading ? '...' : analytics?.stats?.totalUsers ?? 0}
+                icon={Users}
+              />
+              <StatCard
+                title="Institutions"
+                value={isLoading ? '...' : analytics?.stats?.totalInstitutions ?? institutions.length ?? 0}
+                icon={Building2}
+              />
+              <StatCard
+                title="Active Courses"
+                value={isLoading ? '...' : analytics?.stats?.activeCourses ?? courses.filter((c) => c.status === 'ACTIVE').length ?? 0}
+                icon={BookOpen}
+              />
+              <StatCard
+                title="System Alerts"
+                value={isLoading ? '...' : analytics?.stats?.systemAlertsCount ?? 0}
+                icon={AlertCircle}
+              />
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-12 gap-6 items-start">
               <div className="md:col-span-7">
                 <Card title="Recent Users">
                   <div className="space-y-3">
-                    {data.recentUsers.map((u, i) => (
-                      <div key={i} className="p-3 bg-[var(--background)] rounded-[var(--radius-md)] border border-[var(--border-subtle)] flex items-center justify-between">
-                        <div>
-                          <h4 className="text-xs font-bold text-[var(--text-primary)]">{u.name}</h4>
-                          <p className="text-[11px] text-[var(--text-secondary)]">{u.email} • {u.joined}</p>
+                    {isLoading ? (
+                      <p className="text-xs text-[var(--text-secondary)] p-4 text-center">Loading recent users...</p>
+                    ) : analytics?.recentUsers && analytics.recentUsers.length > 0 ? (
+                      analytics.recentUsers.map((u, i) => (
+                        <div key={u._id || i} className="p-3 bg-[var(--background)] rounded-[var(--radius-md)] border border-[var(--border-subtle)] flex items-center justify-between">
+                          <div>
+                            <h4 className="text-xs font-bold text-[var(--text-primary)]">{u.name || 'Unnamed User'}</h4>
+                            <p className="text-[11px] text-[var(--text-secondary)]">{u.email} • {u.createdAt ? new Date(u.createdAt).toLocaleDateString() : 'Recent'}</p>
+                          </div>
+                          <span className="text-xs font-bold text-[var(--primary)]">{u.role}</span>
                         </div>
-                        <span className="text-xs font-bold text-[var(--primary)]">{u.role}</span>
-                      </div>
-                    ))}
+                      ))
+                    ) : (
+                      <p className="text-xs text-[var(--text-secondary)] p-4 text-center">No recent user activity found.</p>
+                    )}
                   </div>
                 </Card>
               </div>
@@ -264,14 +292,30 @@ export const AdminPanelPage = () => {
               <div className="md:col-span-5">
                 <Card title="System Health">
                   <div className="space-y-3 text-xs">
-                    {Object.entries(data.systemHealth).map(([key, val]) => (
-                      <div key={key} className="flex justify-between items-center p-2.5 bg-[var(--background)] rounded-[var(--radius-md)] border border-[var(--border-subtle)]">
-                        <span className="font-semibold capitalize text-[var(--text-primary)]">{key}</span>
-                        <span className={`font-bold flex items-center gap-1 ${val.includes('Warning') ? 'text-[var(--warning)]' : 'text-[var(--success)]'}`}>
-                          <CheckCircle2 className="w-3.5 h-3.5" /> {val}
-                        </span>
-                      </div>
-                    ))}
+                    <div className="flex justify-between items-center p-2.5 bg-[var(--background)] rounded-[var(--radius-md)] border border-[var(--border-subtle)]">
+                      <span className="font-semibold capitalize text-[var(--text-primary)]">API Service</span>
+                      <span className="font-bold flex items-center gap-1 text-[var(--success)]">
+                        <CheckCircle2 className="w-3.5 h-3.5" /> Operational
+                      </span>
+                    </div>
+                    <div className="flex justify-between items-center p-2.5 bg-[var(--background)] rounded-[var(--radius-md)] border border-[var(--border-subtle)]">
+                      <span className="font-semibold capitalize text-[var(--text-primary)]">MongoDB Database</span>
+                      <span className="font-bold flex items-center gap-1 text-[var(--success)]">
+                        <CheckCircle2 className="w-3.5 h-3.5" /> Connected
+                      </span>
+                    </div>
+                    <div className="flex justify-between items-center p-2.5 bg-[var(--background)] rounded-[var(--radius-md)] border border-[var(--border-subtle)]">
+                      <span className="font-semibold capitalize text-[var(--text-primary)]">Mail Transporter</span>
+                      <span className="font-bold flex items-center gap-1 text-[var(--success)]">
+                        <CheckCircle2 className="w-3.5 h-3.5" /> Ready
+                      </span>
+                    </div>
+                    <div className="flex justify-between items-center p-2.5 bg-[var(--background)] rounded-[var(--radius-md)] border border-[var(--border-subtle)]">
+                      <span className="font-semibold capitalize text-[var(--text-primary)]">System Alerts</span>
+                      <span className={`font-bold flex items-center gap-1 ${(analytics?.stats?.systemAlertsCount ?? 0) > 0 ? 'text-[var(--warning)]' : 'text-[var(--success)]'}`}>
+                        <CheckCircle2 className="w-3.5 h-3.5" /> {(analytics?.stats?.systemAlertsCount ?? 0) > 0 ? `${analytics.stats.systemAlertsCount} Active` : '0 Unresolved'}
+                      </span>
+                    </div>
                   </div>
                 </Card>
               </div>

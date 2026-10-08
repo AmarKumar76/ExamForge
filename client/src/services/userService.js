@@ -23,10 +23,17 @@ export const userService = {
   },
 
   /**
-   * Create user account by admin
+   * Create user account by admin (Student or Instructor)
    */
   create: async (userData) => {
     return api.post('/users', userData);
+  },
+
+  /**
+   * Bulk import users from CSV/XLSX parsed dataset
+   */
+  bulkImport: async (payload) => {
+    return api.post('/users/bulk-import', payload);
   },
 
   /**
@@ -55,5 +62,12 @@ export const userService = {
    */
   updatePreferences: async (data) => {
     return api.put('/users/preferences', data);
+  },
+
+  /**
+   * Resend welcome email to a student or instructor
+   */
+  resendWelcomeEmail: async (id) => {
+    return api.post(`/users/${id}/resend-welcome-email`);
   },
 };

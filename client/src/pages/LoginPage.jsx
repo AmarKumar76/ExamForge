@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useNavigate, useLocation, Link } from 'react-router-dom';
-import { GraduationCap, ArrowRight, ShieldCheck, Lock, Mail, AlertCircle, CheckCircle2 } from 'lucide-react';
+import { GraduationCap, ArrowRight, ShieldCheck, Lock, Mail, AlertCircle, CheckCircle2, Eye, EyeOff } from 'lucide-react';
 import { Button } from '../components/ui/Button';
 import { ThemeToggle } from '../components/ui/ThemeToggle';
 import { useAuth } from '../context/AuthContext';
@@ -15,6 +15,7 @@ export const LoginPage = () => {
   const [selectedRole, setSelectedRole] = useState('instructor');
   const [email, setEmail] = useState('amar@gmail.com');
   const [password, setPassword] = useState('Instructor@123');
+  const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -60,7 +61,7 @@ export const LoginPage = () => {
         {/* Left Login Form Panel */}
         <div className="md:col-span-7 p-8 md:p-10 flex flex-col justify-between">
           <div>
-            {/* Header Brand + ThemeToggle */}
+            {/* Header Brand + ThemeToggle & Back to Home */}
             <div className="flex items-center justify-between mb-6">
               <Link to="/" className="flex items-center gap-3 group">
                 <div className="w-8 h-8 rounded-[var(--radius-md)] bg-[var(--primary)] text-white flex items-center justify-center font-bold text-sm shadow-sm group-hover:scale-105 transition-transform">
@@ -68,7 +69,12 @@ export const LoginPage = () => {
                 </div>
                 <span className="font-bold text-lg text-[var(--text-primary)]">Exam<span className="text-[var(--primary)]">Forge</span></span>
               </Link>
-              <ThemeToggle size="sm" />
+              <div className="flex items-center gap-3">
+                <ThemeToggle size="sm" />
+                <Link to="/" className="text-xs font-semibold text-[var(--primary)] hover:underline cursor-pointer">
+                  Back to Home
+                </Link>
+              </div>
             </div>
 
             <h2 className="text-2xl font-bold text-[var(--text-primary)]">Welcome Back</h2>
@@ -129,18 +135,28 @@ export const LoginPage = () => {
               <div>
                 <div className="flex items-center justify-between mb-1">
                   <label className="block text-xs font-semibold text-[var(--text-secondary)]">Password</label>
-                  <a href="#" className="text-xs text-[var(--primary)] font-semibold hover:underline">Forgot Password?</a>
+                  <Link to="/forgot-password" className="text-xs text-[var(--primary)] font-bold hover:underline focus:outline-none">
+                    Forgot Password?
+                  </Link>
                 </div>
                 <div className="relative">
                   <Lock className="w-4 h-4 text-[var(--text-muted)] absolute left-3 top-3" />
                   <input
-                    type="password"
+                    type={showPassword ? 'text' : 'password'}
                     value={password}
                     disabled={isSubmitting}
                     onChange={(e) => setPassword(e.target.value)}
-                    className="w-full pl-9 pr-4 py-2.5 text-xs bg-[var(--surface-muted)] border border-[var(--border)] rounded-[var(--radius-md)] text-[var(--text-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--primary)] disabled:opacity-50"
+                    className="w-full pl-9 pr-10 py-2.5 text-xs bg-[var(--surface-muted)] border border-[var(--border)] rounded-[var(--radius-md)] text-[var(--text-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--primary)] disabled:opacity-50"
                     required
                   />
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword(!showPassword)}
+                    aria-label={showPassword ? 'Hide password' : 'Show password'}
+                    className="absolute right-3 top-2.5 text-[var(--text-muted)] hover:text-[var(--text-primary)] focus:outline-none focus:text-[var(--primary)]"
+                  >
+                    {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                  </button>
                 </div>
               </div>
 
@@ -169,7 +185,7 @@ export const LoginPage = () => {
           </div>
 
           <p className="text-xs text-center text-[var(--text-secondary)] mt-6">
-            Don't have an account? <Link to="/register" className="text-[var(--primary)] font-bold hover:underline">Sign up</Link>
+            Accounts are created and provisioned by institution administrators.
           </p>
         </div>
 

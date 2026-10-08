@@ -173,3 +173,6 @@ export const examService = {
     return api.post(`/exams/instructor/exams/${examId}/similarity-check`);
   }
 };
+
+export default examService;
+

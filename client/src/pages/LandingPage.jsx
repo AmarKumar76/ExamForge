@@ -50,7 +50,7 @@ export const LandingPage = () => {
                 variant="primary" 
                 size="lg" 
                 icon={ArrowRight} 
-                onClick={() => navigate('/register')}
+                onClick={() => navigate('/login')}
                 className="shadow-md hover:shadow-lg"
               >
                 Get Started Free

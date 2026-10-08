@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import {
   LayoutDashboard,
@@ -14,16 +14,23 @@ import {
   Settings,
   Building2,
   FileSpreadsheet,
+  Activity,
   Layers,
+  X,
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { UserProfileMenu } from '../ui/UserProfileMenu';
 
-export const Sidebar = () => {
+export const Sidebar = ({ isOpen = false, onClose = () => {} }) => {
   const location = useLocation();
   const { user } = useAuth();
 
   const role = user?.role || 'STUDENT';
+
+  // Automatically close mobile menu on route change
+  useEffect(() => {
+    onClose();
+  }, [location.pathname]);
 
   const roleNavMap = {
     STUDENT: [
@@ -42,6 +49,7 @@ export const Sidebar = () => {
       { label: 'Question Bank', icon: FolderKanban, path: '/instructor/question-bank' },
       { label: 'AI Question Studio', icon: Sparkles, path: '/instructor/ai-studio', badge: 'Studio' },
       { label: 'Exams', icon: FileText, path: '/instructor/exams' },
+      { label: 'Exam Monitoring', icon: Activity, path: '/instructor/exam-monitoring', badge: 'Live' },
       { label: 'Results', icon: Award, path: '/instructor/results' },
       { label: 'Analytics', icon: BarChart3, path: '/instructor/analytics' },
       { label: 'Students', icon: Users, path: '/instructor/students' },
@@ -80,26 +88,38 @@ export const Sidebar = () => {
     return roleMap[r] || r;
   };
 
-  return (
-    <aside className="w-64 bg-[var(--surface)] border-r border-[var(--border)] flex flex-col h-screen sticky top-0 z-30 select-none">
+  const SidebarContent = () => (
+    <div className="flex flex-col h-full bg-[var(--surface)]">
       {/* Brand Logo Header */}
-      <Link
-        to="/"
-        className="p-5 border-b border-[var(--border-subtle)] flex items-center gap-3 group hover:bg-[var(--surface-muted)]/40 transition-colors cursor-pointer"
-        title="Go to ExamForge Landing Page"
-      >
-        <div className="w-9 h-9 rounded-[var(--radius-md)] bg-[var(--primary)] text-white flex items-center justify-center font-bold text-lg shadow-sm group-hover:scale-105 transition-transform">
-          EF
-        </div>
-        <div>
-          <h1 className="font-bold text-lg text-[var(--text-primary)] leading-none tracking-tight">
-            Exam<span className="text-[var(--primary)]">Forge</span>
-          </h1>
-          <span className="text-[11px] text-[var(--text-secondary)] font-medium capitalize mt-0.5 block">
-            {formatRoleLabel(role)} Workspace
-          </span>
-        </div>
-      </Link>
+      <div className="p-4 sm:p-5 border-b border-[var(--border-subtle)] flex items-center justify-between">
+        <Link
+          to="/"
+          onClick={onClose}
+          className="flex items-center gap-3 group hover:opacity-90 transition-opacity cursor-pointer"
+          title="Go to ExamForge Landing Page"
+        >
+          <div className="w-9 h-9 rounded-[var(--radius-md)] bg-[var(--primary)] text-white flex items-center justify-center font-bold text-lg shadow-sm group-hover:scale-105 transition-transform">
+            EF
+          </div>
+          <div>
+            <h1 className="font-bold text-lg text-[var(--text-primary)] leading-none tracking-tight">
+              Exam<span className="text-[var(--primary)]">Forge</span>
+            </h1>
+            <span className="text-[11px] text-[var(--text-secondary)] font-medium capitalize mt-0.5 block">
+              {formatRoleLabel(role)} Workspace
+            </span>
+          </div>
+        </Link>
+
+        {/* Mobile Close Button */}
+        <button
+          onClick={onClose}
+          className="p-1.5 rounded-lg text-[var(--text-muted)] hover:text-[var(--text-primary)] hover:bg-[var(--surface-muted)] md:hidden cursor-pointer"
+          aria-label="Close mobile navigation menu"
+        >
+          <X className="w-5 h-5" />
+        </button>
+      </div>
 
       {/* Navigation List */}
       <nav className="flex-1 overflow-y-auto px-3 py-4 space-y-1">
@@ -113,6 +133,7 @@ export const Sidebar = () => {
             <Link
               key={item.label}
               to={item.path}
+              onClick={onClose}
               className={`flex items-center justify-between px-3.5 py-2.5 rounded-[var(--radius-md)] text-sm font-medium transition-all duration-150 ${
                 isActive
                   ? 'bg-[var(--primary)] text-[var(--text-on-primary)] shadow-sm'
@@ -141,6 +162,31 @@ export const Sidebar = () => {
       <div className="p-3 border-t border-[var(--border-subtle)]">
         <UserProfileMenu placement="bottom" />
       </div>
-    </aside>
+    </div>
+  );
+
+  return (
+    <>
+      {/* Desktop Sticky Sidebar */}
+      <aside className="hidden md:flex w-64 bg-[var(--surface)] border-r border-[var(--border)] flex-col h-screen sticky top-0 z-30 select-none">
+        <SidebarContent />
+      </aside>
+
+      {/* Mobile Responsive Drawer Overlay */}
+      {isOpen && (
+        <div className="fixed inset-0 z-50 flex md:hidden">
+          {/* Backdrop */}
+          <div
+            className="fixed inset-0 bg-black/50 backdrop-blur-xs transition-opacity"
+            onClick={onClose}
+          />
+
+          {/* Drawer Panel */}
+          <aside className="relative w-72 max-w-[82vw] bg-[var(--surface)] border-r border-[var(--border)] shadow-2xl flex flex-col h-full z-10 animate-slideRight">
+            <SidebarContent />
+          </aside>
+        </div>
+      )}
+    </>
   );
 };

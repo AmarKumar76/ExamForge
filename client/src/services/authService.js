@@ -24,4 +24,20 @@ export const authService = {
   getCurrentUser: async () => {
     return await api.get('/auth/me');
   },
+
+  /**
+   * Request password reset instructions
+   * POST /api/v1/auth/forgot-password
+   */
+  forgotPassword: async (email) => {
+    return await api.post('/auth/forgot-password', { email });
+  },
+
+  /**
+   * Submit new password with reset token
+   * POST /api/v1/auth/reset-password
+   */
+  resetPassword: async ({ token, password }) => {
+    return await api.post('/auth/reset-password', { token, password });
+  },
 };

@@ -27,9 +27,13 @@ export const InstructorStudentsPage = () => {
     try {
       setIsLoading(true);
       setError(null);
-      const res = await examService.getInstructorStudents();
-      if (res.success && res.data) {
-        setStudents(res.data);
+      if (typeof examService?.getInstructorStudents === 'function') {
+        const res = await examService.getInstructorStudents();
+        if (res?.success && res?.data) {
+          setStudents(res.data);
+        }
+      } else {
+        setError('Instructor student service function is unavailable. Please refresh your browser page.');
       }
     } catch (err) {
       setError(err.message || 'Failed to load students.');

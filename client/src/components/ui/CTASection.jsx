@@ -13,7 +13,7 @@ export const CTASection = ({
 }) => {
   const navigate = useNavigate();
 
-  const handlePrimary = onPrimaryClick || (() => navigate('/register'));
+  const handlePrimary = onPrimaryClick || (() => navigate('/login'));
   const handleSecondary = onSecondaryClick || (() => navigate('/login'));
 
   return (

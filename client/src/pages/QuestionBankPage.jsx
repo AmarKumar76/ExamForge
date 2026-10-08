@@ -36,7 +36,7 @@ export const QuestionBankPage = () => {
   const [uncategorizedFolder, setUncategorizedFolder] = useState(null);
   const [allCourseCounts, setAllCourseCounts] = useState(null);
 
-  // 'ALL' = Folders Overview Mode, 'uncategorized' = Unassigned Questions Mode, or folder _id
+  // 'ALL' = Main Question Folders Overview Mode, 'uncategorized' = Unassigned Questions Mode, or folder _id
   const [selectedFolderId, setSelectedFolderId] = useState('ALL');
 
   const [questions, setQuestions] = useState([]);
@@ -121,11 +121,18 @@ export const QuestionBankPage = () => {
     try {
       setIsLoadingFolders(true);
       const res = await folderService.getFolders(courseId);
-      if (res.data) {
-        setFolders(res.data.folders || []);
-        setUncategorizedFolder(res.data.uncategorized || null);
-        setAllCourseCounts(res.data.allCourseCounts || null);
-      }
+      const payload = res.data || res;
+      const folderList = Array.isArray(payload?.folders)
+        ? payload.folders
+        : Array.isArray(payload)
+        ? payload
+        : Array.isArray(res?.folders)
+        ? res.folders
+        : [];
+
+      setFolders(folderList);
+      setUncategorizedFolder(payload?.uncategorized || res?.uncategorized || null);
+      setAllCourseCounts(payload?.allCourseCounts || res?.allCourseCounts || null);
     } catch (err) {
       console.error('Failed to load folders:', err);
     } finally {
@@ -177,9 +184,10 @@ export const QuestionBankPage = () => {
           ...folderForm,
           questionIds: selectedQuestionIds,
         });
-        const newFolderId = res.data?._id || res.data?.id;
+        const createdFolder = res.data || res;
+        const newFolderId = createdFolder._id || createdFolder.id;
         if (selectedQuestionIds.length > 0) {
-          setSuccess(`Folder "${folderForm.title}" created and ${selectedQuestionIds.length} question(s) moved into it!`);
+          setSuccess(`Folder "${folderForm.title}" created and ${selectedQuestionIds.length} question(s) saved into it!`);
         } else {
           setSuccess(`Folder "${folderForm.title}" created successfully!`);
         }
@@ -189,20 +197,20 @@ export const QuestionBankPage = () => {
       }
       setSelectedQuestionIds([]);
       setIsFolderModalOpen(false);
-      await loadFoldersAndQuestions(selectedCourseId);
+      await loadFolders(selectedCourseId);
     } catch (err) {
       setError(err.message || 'Failed to save folder.');
     }
   };
 
   const handleDeleteFolder = async (folder) => {
-    if (!window.confirm(`Are you sure you want to delete folder "${folder.title}"? Questions in this folder will be moved to Unassigned.`)) {
+    if (!window.confirm(`Are you sure you want to delete folder "${folder.title}"? Questions in this folder will be moved to Unassigned Questions.`)) {
       return;
     }
     try {
       setError(null);
       await folderService.deleteFolder(folder.id || folder._id);
-      setSuccess(`Folder "${folder.title}" deleted. Questions moved to Unassigned Questions.`);
+      setSuccess(`Folder "${folder.title}" deleted.`);
       if (selectedFolderId === (folder.id || folder._id)) {
         setSelectedFolderId('ALL');
       }
@@ -245,7 +253,7 @@ export const QuestionBankPage = () => {
       const res = await aiService.approveQuestion(qId);
       const updatedDoc = res.data || res;
       setQuestions((prev) => prev.map((q) => ((q._id || q.id) === qId ? updatedDoc : q)));
-      setSuccess('Question approved for official exams!');
+      setSuccess('Question approved!');
       loadFolders(selectedCourseId);
     } catch (err) {
       setError(err.message || 'Failed to approve question.');
@@ -315,16 +323,16 @@ export const QuestionBankPage = () => {
 
   return (
     <AppShell title="Question Bank">
-      <div className="space-y-6 max-w-6xl mx-auto pb-12">
+      <div className="space-y-6 max-w-5xl mx-auto pb-12">
         {/* Top Header Bar */}
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-[var(--surface)] p-6 rounded-2xl border border-[var(--border)] shadow-xs">
           <div>
             <h1 className="text-xl font-bold text-[var(--text-primary)] flex items-center gap-2">
               <FolderKanban className="w-6 h-6 text-[var(--primary)]" />
-              Academic Question Bank
+              Question Bank
             </h1>
             <p className="text-xs text-[var(--text-secondary)] mt-0.5">
-              Manage approved unit folders and create official exams for your assigned courses.
+              Organized unit folders of approved questions for exam creation.
             </p>
           </div>
 
@@ -364,7 +372,7 @@ export const QuestionBankPage = () => {
           </div>
         </div>
 
-        {/* Banners */}
+        {/* Feedback Banners */}
         {error && (
           <div className="p-4 bg-red-500/10 border border-red-500/20 rounded-xl text-xs text-red-600 dark:text-red-400 flex items-center justify-between">
             <div className="flex items-center gap-2">
@@ -389,7 +397,7 @@ export const QuestionBankPage = () => {
           </div>
         )}
 
-        {/* MAIN VIEW MODE 1: ALL FOLDERS OVERVIEW */}
+        {/* MAIN VIEW MODE 1: QUESTION FOLDERS LIST */}
         {selectedFolderId === 'ALL' ? (
           <div className="space-y-6">
             {/* Section 1: Question Folders Header */}
@@ -400,12 +408,12 @@ export const QuestionBankPage = () => {
                   Question Folders for {selectedCourse?.code || 'Course'}
                 </h2>
                 <p className="text-xs text-[var(--text-secondary)] mt-0.5">
-                  Organized unit/chapter folders containing approved questions for exam creation.
+                  Unit/Chapter folders containing approved questions.
                 </p>
               </div>
 
               <Button
-                variant="outline"
+                variant="primary"
                 size="sm"
                 icon={FolderPlus}
                 onClick={handleOpenCreateFolder}
@@ -418,18 +426,35 @@ export const QuestionBankPage = () => {
             {isLoadingFolders ? (
               <div className="p-12 text-center bg-[var(--surface)] rounded-2xl border border-[var(--border)]">
                 <RefreshCw className="w-6 h-6 animate-spin mx-auto text-[var(--primary)] mb-2" />
-                <p className="text-xs text-[var(--text-secondary)]">Loading unit folders...</p>
+                <p className="text-xs text-[var(--text-secondary)]">Loading folders...</p>
+              </div>
+            ) : folders.length === 0 && (!uncategorizedFolder || uncategorizedFolder?.counts?.total === 0) ? (
+              <div className="p-12 text-center bg-[var(--surface)] rounded-2xl border border-[var(--border)]">
+                <Folder className="w-10 h-10 mx-auto text-[var(--text-muted)] mb-3 opacity-40" />
+                <h3 className="text-sm font-bold text-[var(--text-primary)]">No unit folders created yet</h3>
+                <p className="text-xs text-[var(--text-secondary)] mt-1 max-w-md mx-auto">
+                  Click "Create Unit Folder" above or use AI Question Studio to generate and save approved questions into unit folders.
+                </p>
+                <Button
+                  variant="primary"
+                  size="sm"
+                  icon={FolderPlus}
+                  className="mt-4"
+                  onClick={handleOpenCreateFolder}
+                >
+                  Create Unit Folder
+                </Button>
               </div>
             ) : (
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-                {/* Created Unit Folders */}
+                {/* Created Unit Folders Cards */}
                 {folders.map((f) => {
                   const fId = f.id || f._id;
                   const c = f.counts || { total: 0, approved: 0, draft: 0 };
                   return (
                     <Card
                       key={fId}
-                      className="p-5 rounded-2xl border border-[var(--border)] hover:border-[var(--primary)] transition-all cursor-pointer group space-y-3 shadow-xs"
+                      className="p-5 rounded-2xl border border-[var(--border)] hover:border-[var(--primary)] transition-all cursor-pointer group space-y-3 shadow-xs bg-[var(--surface)]"
                       onClick={() => setSelectedFolderId(fId)}
                     >
                       <div className="flex items-start justify-between">
@@ -453,7 +478,7 @@ export const QuestionBankPage = () => {
                               e.stopPropagation();
                               handleOpenEditFolder(f);
                             }}
-                            className="p-1 text-[var(--text-secondary)] hover:text-[var(--primary)] rounded-md"
+                            className="p-1 text-[var(--text-secondary)] hover:text-[var(--primary)] rounded-md cursor-pointer"
                           >
                             <Edit2 className="w-3.5 h-3.5" />
                           </button>
@@ -462,24 +487,24 @@ export const QuestionBankPage = () => {
                               e.stopPropagation();
                               handleDeleteFolder(f);
                             }}
-                            className="p-1 text-red-500 hover:bg-red-500/10 rounded-md"
+                            className="p-1 text-red-500 hover:bg-red-500/10 rounded-md cursor-pointer"
                           >
                             <Trash2 className="w-3.5 h-3.5" />
                           </button>
                         </div>
                       </div>
 
-                      <div className="pt-2 border-t border-[var(--border-subtle)] flex items-center justify-between text-xs">
+                      <div className="pt-3 border-t border-[var(--border-subtle)] flex items-center justify-between text-xs">
                         <span className="font-bold text-emerald-600 dark:text-emerald-400">
-                          {c.approved} Approved
+                          {c.approved || 0} Approved Questions
                         </span>
-                        <span className="text-[var(--text-muted)]">{c.total} Total Items</span>
+                        <span className="text-[var(--text-muted)]">{c.total} Items</span>
                       </div>
                     </Card>
                   );
                 })}
 
-                {/* Unassigned / Unfoldered Card if questions exist */}
+                {/* Unassigned Questions Card if questions exist */}
                 {uncategorizedFolder?.counts?.total > 0 && (
                   <Card
                     className="p-5 rounded-2xl border border-dashed border-amber-500/40 hover:border-amber-500 transition-all cursor-pointer group space-y-3 bg-amber-500/5"
@@ -499,12 +524,12 @@ export const QuestionBankPage = () => {
                       </div>
                     </div>
 
-                    <div className="pt-2 border-t border-amber-500/20 flex items-center justify-between text-xs">
+                    <div className="pt-3 border-t border-amber-500/20 flex items-center justify-between text-xs">
                       <span className="font-bold text-amber-600">
-                        {uncategorizedFolder?.counts?.approved || 0} Approved
+                        {uncategorizedFolder?.counts?.approved || 0} Approved Questions
                       </span>
                       <span className="text-[var(--text-muted)]">
-                        {uncategorizedFolder?.counts?.total || 0} Questions
+                        {uncategorizedFolder?.counts?.total || 0} Items
                       </span>
                     </div>
                   </Card>
@@ -513,17 +538,17 @@ export const QuestionBankPage = () => {
             )}
           </div>
         ) : (
-          /* MAIN VIEW MODE 2: INSIDE A SPECIFIC FOLDER VIEW */
+          /* MAIN VIEW MODE 2: INSIDE A SELECTED FOLDER VIEW */
           <div className="space-y-4">
-            {/* Header / Back Bar */}
+            {/* Folder Header Bar */}
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-[var(--surface)] p-5 rounded-2xl border border-[var(--border)] shadow-xs">
               <div className="flex items-center gap-3">
                 <button
                   onClick={() => setSelectedFolderId('ALL')}
-                  className="p-2 rounded-xl bg-[var(--background)] border border-[var(--border)] hover:bg-[var(--primary)] hover:text-white transition-all cursor-pointer text-xs font-bold flex items-center gap-1"
+                  className="px-3 py-1.5 rounded-xl bg-[var(--background)] border border-[var(--border)] hover:bg-[var(--primary)] hover:text-white transition-all cursor-pointer text-xs font-bold flex items-center gap-1"
                 >
                   <ChevronLeft className="w-4 h-4" />
-                  Folders
+                  Question Bank
                 </button>
                 <div>
                   <h2 className="text-base font-bold text-[var(--text-primary)] flex items-center gap-2">
@@ -534,8 +559,8 @@ export const QuestionBankPage = () => {
                   </h2>
                   <p className="text-xs text-[var(--text-secondary)]">
                     {selectedFolderId === 'uncategorized'
-                      ? 'Questions not assigned to any specific unit'
-                      : selectedFolderObj?.description || 'Approved unit questions'}
+                      ? 'Questions not assigned to any unit folder'
+                      : selectedFolderObj?.description || 'Unit chapter questions'}
                   </p>
                 </div>
               </div>
@@ -543,7 +568,7 @@ export const QuestionBankPage = () => {
               <div className="flex items-center gap-3">
                 <Badge variant="success" size="md">
                   {selectedFolderId === 'uncategorized'
-                    ? `${uncategorizedFolder?.counts?.approved || 0} Approved`
+                    ? `${uncategorizedFolder?.counts?.approved || 0} Approved Questions`
                     : `${selectedFolderObj?.counts?.approved || 0} Approved Questions`}
                 </Badge>
 
@@ -599,7 +624,7 @@ export const QuestionBankPage = () => {
             ) : filteredQuestions.length === 0 ? (
               <div className="p-12 text-center bg-[var(--surface)] rounded-2xl border border-[var(--border)]">
                 <BookOpen className="w-8 h-8 mx-auto text-[var(--text-muted)] mb-3 opacity-50" />
-                <h3 className="text-sm font-bold text-[var(--text-primary)]">No questions in this folder</h3>
+                <h3 className="text-sm font-bold text-[var(--text-primary)]">No questions found in this folder</h3>
                 <p className="text-xs text-[var(--text-secondary)] mt-1">
                   Use AI Question Studio to generate new items for this unit.
                 </p>
@@ -684,13 +709,13 @@ export const QuestionBankPage = () => {
 
               <div className="space-y-3">
                 <div>
-                  <label className="text-xs font-bold text-[var(--text-secondary)] block mb-1">Unit Title</label>
+                  <label className="text-xs font-bold text-[var(--text-secondary)] block mb-1">Unit / Folder Title</label>
                   <input
                     type="text"
-                    placeholder="e.g. Unit 2 - Enterprise Java"
+                    placeholder="e.g. Unit 1 - Java Programming"
                     value={folderForm.title}
                     onChange={(e) => setFolderForm({ ...folderForm, title: e.target.value })}
-                    className="w-full px-3 py-2 bg-[var(--background)] border border-[var(--border)] rounded-xl text-xs text-[var(--text-primary)]"
+                    className="w-full px-3 py-2 bg-[var(--background)] border border-[var(--border)] rounded-xl text-xs text-[var(--text-primary)] font-semibold"
                   />
                 </div>
 

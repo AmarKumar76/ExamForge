@@ -6,13 +6,18 @@ import { Badge } from '../components/ui/Badge';
 import { useAuth } from '../context/AuthContext';
 import { useTheme } from '../context/ThemeContext';
 import { userService } from '../services/userService';
-import { User, Lock, Bell, Moon, Sun, CheckCircle, AlertCircle, Save, RefreshCw } from 'lucide-react';
+import { User, Lock, Bell, Moon, Sun, CheckCircle, AlertCircle, Save, RefreshCw, Eye, EyeOff } from 'lucide-react';
 
 export const InstructorSettingsPage = () => {
   const { user, login } = useAuth(); // login can re-sync user state if updated
   const { theme, toggleTheme } = useTheme();
 
   const [activeTab, setActiveTab] = useState('PROFILE');
+
+  // Security Show/Hide Password States
+  const [showCurrentPassword, setShowCurrentPassword] = useState(false);
+  const [showNewPassword, setShowNewPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
 
   // Profile Form State
   const [profileForm, setProfileForm] = useState({
@@ -308,39 +313,69 @@ export const InstructorSettingsPage = () => {
                 <label className="block text-xs font-bold text-[var(--text-primary)] mb-1">
                   Current Password
                 </label>
-                <input
-                  type="password"
-                  required
-                  value={securityForm.currentPassword}
-                  onChange={(e) => setSecurityForm({ ...securityForm, currentPassword: e.target.value })}
-                  className="w-full px-3 py-2 border border-[var(--border)] rounded-lg text-xs bg-[var(--background)] text-[var(--text-primary)] focus:outline-none focus:border-[var(--primary)]"
-                />
+                <div className="relative">
+                  <input
+                    type={showCurrentPassword ? 'text' : 'password'}
+                    required
+                    value={securityForm.currentPassword}
+                    onChange={(e) => setSecurityForm({ ...securityForm, currentPassword: e.target.value })}
+                    className="w-full pl-3 pr-9 py-2 border border-[var(--border)] rounded-lg text-xs bg-[var(--background)] text-[var(--text-primary)] focus:outline-none focus:border-[var(--primary)]"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowCurrentPassword(!showCurrentPassword)}
+                    aria-label={showCurrentPassword ? 'Hide password' : 'Show password'}
+                    className="absolute right-2.5 top-2 text-[var(--text-muted)] hover:text-[var(--text-primary)] focus:outline-none"
+                  >
+                    {showCurrentPassword ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+                  </button>
+                </div>
               </div>
 
               <div>
                 <label className="block text-xs font-bold text-[var(--text-primary)] mb-1">
                   New Password
                 </label>
-                <input
-                  type="password"
-                  required
-                  value={securityForm.newPassword}
-                  onChange={(e) => setSecurityForm({ ...securityForm, newPassword: e.target.value })}
-                  className="w-full px-3 py-2 border border-[var(--border)] rounded-lg text-xs bg-[var(--background)] text-[var(--text-primary)] focus:outline-none focus:border-[var(--primary)]"
-                />
+                <div className="relative">
+                  <input
+                    type={showNewPassword ? 'text' : 'password'}
+                    required
+                    value={securityForm.newPassword}
+                    onChange={(e) => setSecurityForm({ ...securityForm, newPassword: e.target.value })}
+                    className="w-full pl-3 pr-9 py-2 border border-[var(--border)] rounded-lg text-xs bg-[var(--background)] text-[var(--text-primary)] focus:outline-none focus:border-[var(--primary)]"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowNewPassword(!showNewPassword)}
+                    aria-label={showNewPassword ? 'Hide password' : 'Show password'}
+                    className="absolute right-2.5 top-2 text-[var(--text-muted)] hover:text-[var(--text-primary)] focus:outline-none"
+                  >
+                    {showNewPassword ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+                  </button>
+                </div>
               </div>
 
               <div>
                 <label className="block text-xs font-bold text-[var(--text-primary)] mb-1">
                   Confirm New Password
                 </label>
-                <input
-                  type="password"
-                  required
-                  value={securityForm.confirmPassword}
-                  onChange={(e) => setSecurityForm({ ...securityForm, confirmPassword: e.target.value })}
-                  className="w-full px-3 py-2 border border-[var(--border)] rounded-lg text-xs bg-[var(--background)] text-[var(--text-primary)] focus:outline-none focus:border-[var(--primary)]"
-                />
+                <div className="relative">
+                  <input
+                    type={showConfirmPassword ? 'text' : 'password'}
+                    required
+                    value={securityForm.confirmPassword}
+                    onChange={(e) => setSecurityForm({ ...securityForm, confirmPassword: e.target.value })}
+                    className="w-full pl-3 pr-9 py-2 border border-[var(--border)] rounded-lg text-xs bg-[var(--background)] text-[var(--text-primary)] focus:outline-none focus:border-[var(--primary)]"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                    aria-label={showConfirmPassword ? 'Hide password' : 'Show password'}
+                    className="absolute right-2.5 top-2 text-[var(--text-muted)] hover:text-[var(--text-primary)] focus:outline-none"
+                  >
+                    {showConfirmPassword ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+                  </button>
+                </div>
               </div>
 
               <div className="pt-2">

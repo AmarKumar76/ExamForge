@@ -71,7 +71,7 @@ export const Navbar = () => {
           <Button variant="ghost" size="sm" onClick={() => navigate('/login')}>
             Sign In
           </Button>
-          <Button variant="primary" size="sm" icon={ArrowRight} onClick={() => navigate('/register')}>
+          <Button variant="primary" size="sm" icon={ArrowRight} onClick={() => navigate('/login')}>
             Get Started Free
           </Button>
         </div>
@@ -126,7 +126,7 @@ export const Navbar = () => {
             <Button variant="ghost" size="md" className="w-full justify-center" onClick={() => navigate('/login')}>
               Sign In
             </Button>
-            <Button variant="primary" size="md" className="w-full justify-center" onClick={() => navigate('/register')}>
+            <Button variant="primary" size="md" className="w-full justify-center" onClick={() => navigate('/login')}>
               Get Started Free
             </Button>
           </div>

@@ -16,6 +16,9 @@ import {
   ShieldAlert,
   Wifi,
   UserCheck,
+  LayoutGrid,
+  Menu,
+  X,
 } from 'lucide-react';
 
 export const LiveExamPage = () => {
@@ -36,6 +39,7 @@ export const LiveExamPage = () => {
   const [error, setError] = useState(null);
   
   const [showSubmitConfirm, setShowSubmitConfirm] = useState(false);
+  const [showMobilePalette, setShowMobilePalette] = useState(false);
   const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
 
   const [timeLeft, setTimeLeft] = useState(null);
@@ -336,25 +340,39 @@ export const LiveExamPage = () => {
 
   return (
     <div className="min-h-screen bg-[var(--background)] flex flex-col h-screen overflow-hidden">
-      {/* Top Banner */}
-      <header className="h-16 bg-[var(--surface)] border-b border-[var(--border)] px-6 flex items-center justify-between shrink-0">
-        <div>
-          <h1 className="text-lg font-bold text-[var(--text-primary)]">{exam?.title}</h1>
-          <p className="text-xs text-[var(--text-secondary)]">
+      {/* Top Banner Header */}
+      <header className="px-3 sm:px-6 py-2.5 sm:py-0 h-auto sm:h-16 bg-[var(--surface)] border-b border-[var(--border)] flex flex-wrap sm:flex-nowrap items-center justify-between gap-2 shrink-0">
+        <div className="min-w-0 flex-1 sm:flex-none">
+          <h1 className="text-sm sm:text-lg font-bold text-[var(--text-primary)] truncate">{exam?.title}</h1>
+          <p className="text-[10px] sm:text-xs text-[var(--text-secondary)] truncate">
             {exam?.courseId?.code} — {exam?.courseId?.name}
           </p>
         </div>
-        <div className="flex items-center gap-4">
+        <div className="flex items-center gap-2 sm:gap-4 flex-wrap sm:flex-nowrap">
           {isConnectionLost && (
-             <span className="px-3 py-1 bg-red-500/10 text-red-600 text-xs font-bold rounded-lg flex items-center gap-2">
-               <AlertCircle className="w-4 h-4"/> Connection Lost. Saving locally.
+             <span className="px-2 py-1 bg-red-500/10 text-red-600 text-[10px] sm:text-xs font-bold rounded-lg flex items-center gap-1">
+               <AlertCircle className="w-3.5 h-3.5"/> Connection Lost
              </span>
           )}
-          <div className="flex items-center gap-2 px-3 py-1.5 bg-amber-500/10 text-amber-700 dark:text-amber-400 border border-amber-500/20 rounded-xl font-mono text-sm font-bold">
-            <Clock className="w-4 h-4 animate-pulse" />
-            <span>Time Left: {formatTime(timeLeft)}</span>
+          <div className="flex items-center gap-1.5 px-2.5 py-1 sm:py-1.5 bg-amber-500/10 text-amber-700 dark:text-amber-400 border border-amber-500/20 rounded-xl font-mono text-xs sm:text-sm font-bold">
+            <Clock className="w-3.5 h-3.5 sm:w-4 sm:h-4 animate-pulse shrink-0" />
+            <span>{formatTime(timeLeft)}</span>
           </div>
-          <Button variant="primary" size="sm" onClick={() => setShowSubmitConfirm(true)}>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setShowMobilePalette(!showMobilePalette)}
+            className="lg:hidden min-h-[38px] px-2.5 text-xs font-bold flex items-center gap-1"
+          >
+            <LayoutGrid className="w-4 h-4" />
+            <span>Palette ({questions.length})</span>
+          </Button>
+          <Button
+            variant="primary"
+            size="sm"
+            onClick={() => setShowSubmitConfirm(true)}
+            className="min-h-[38px] sm:min-h-[44px] px-3 text-xs sm:text-sm"
+          >
             Finish Exam
           </Button>
         </div>
@@ -456,8 +474,110 @@ export const LiveExamPage = () => {
           )}
         </div>
         
-        {/* Sidebar Palette & Security */}
-        <div className="w-80 bg-[var(--surface)] border-l border-[var(--border)] p-5 shrink-0 flex flex-col h-full overflow-y-auto space-y-6">
+        {/* Mobile Slide-Over Question Palette Drawer */}
+        {showMobilePalette && (
+          <div className="fixed inset-0 z-50 lg:hidden flex">
+            <div 
+              className="fixed inset-0 bg-black/50 backdrop-blur-xs" 
+              onClick={() => setShowMobilePalette(false)} 
+            />
+            <div className="relative ml-auto w-80 max-w-[85vw] bg-[var(--surface)] h-full p-5 shadow-2xl flex flex-col overflow-y-auto space-y-6 z-10">
+              <div className="flex items-center justify-between border-b border-[var(--border-subtle)] pb-3">
+                <h3 className="font-bold text-[var(--text-primary)] text-sm">Question Navigation</h3>
+                <button 
+                  onClick={() => setShowMobilePalette(false)}
+                  className="p-2 text-[var(--text-muted)] hover:text-[var(--text-primary)] rounded-lg cursor-pointer"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+
+              {exam?.securitySettings?.cameraMonitoring !== false && (
+                <div className="space-y-2">
+                  <h4 className="text-[10px] font-bold text-[var(--text-secondary)] uppercase tracking-wider">Live Proctor Monitor</h4>
+                  <FaceProctor
+                    enabled={true}
+                    onSignal={handleProctorSignal}
+                    onStatusChange={setProctorStatus}
+                    showPreview={true}
+                  />
+                </div>
+              )}
+
+              <div className="p-3 bg-[var(--background)] border border-[var(--border)] rounded-xl space-y-2 text-[11px]">
+                <div className="flex items-center justify-between font-bold text-[var(--text-primary)]">
+                  <span>● Secure Mode Active</span>
+                  <span className="text-emerald-500">Active</span>
+                </div>
+                <div className="flex items-center justify-between text-[var(--text-secondary)]">
+                  <span>● Camera Status</span>
+                  <span className={proctorStatus.camera ? "text-emerald-500 font-bold" : "text-red-500 font-bold"}>
+                    {proctorStatus.camera ? "Active" : "Disabled"}
+                  </span>
+                </div>
+                <div className="flex items-center justify-between text-[var(--text-secondary)]">
+                  <span>● Face Presence</span>
+                  <span className={proctorStatus.faceDetected ? "text-emerald-500 font-bold" : "text-amber-500 font-bold animate-pulse"}>
+                    {proctorStatus.faceDetected ? "Detected" : "Absence Alert"}
+                  </span>
+                </div>
+              </div>
+
+              <h3 className="font-bold text-[var(--text-primary)] text-sm">Question Palette</h3>
+              <div className="grid grid-cols-4 gap-2">
+                 {questions.map((q, idx) => {
+                    const id = q._id || q.id;
+                    const ans = userAnswers[id];
+                    const isAnswered = ans && (ans.selectedOption || (ans.textAnswer && ans.textAnswer.length > 0));
+                    const isMarked = markedForReview[id];
+                    const isActive = currentQuestionIndex === idx;
+                    
+                    let bgClass = "bg-[var(--background)] border-[var(--border)] text-[var(--text-secondary)]";
+                    if (isAnswered) bgClass = "bg-[var(--success)] text-white border-[var(--success)]";
+                    if (isMarked) bgClass = "bg-amber-500 text-white border-amber-500";
+                    if (isActive) bgClass += " ring-2 ring-offset-2 ring-[var(--primary)] ring-offset-[var(--surface)]";
+                    
+                    return (
+                      <button 
+                        key={id}
+                        onClick={() => {
+                          setCurrentQuestionIndex(idx);
+                          setShowMobilePalette(false);
+                        }}
+                        className={`w-11 h-11 rounded-lg flex items-center justify-center font-bold text-xs border ${bgClass}`}
+                      >
+                        {idx + 1}
+                      </button>
+                    );
+                 })}
+              </div>
+              
+              <div className="space-y-2 text-xs text-[var(--text-secondary)]">
+                 <div className="flex items-center gap-2">
+                    <div className="w-3.5 h-3.5 rounded bg-[var(--success)]"></div> Answered
+                 </div>
+                 <div className="flex items-center gap-2">
+                    <div className="w-3.5 h-3.5 rounded bg-[var(--background)] border border-[var(--border)]"></div> Unanswered
+                 </div>
+                 <div className="flex items-center gap-2">
+                    <div className="w-3.5 h-3.5 rounded bg-amber-500"></div> Marked for Review
+                 </div>
+              </div>
+              
+              <div className="mt-auto pt-4">
+                 <Button variant="primary" className="w-full min-h-[44px]" onClick={() => {
+                   setShowMobilePalette(false);
+                   setShowSubmitConfirm(true);
+                 }}>
+                   Submit Exam
+                 </Button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Desktop Sidebar Palette & Security */}
+        <div className="hidden lg:flex w-80 bg-[var(--surface)] border-l border-[var(--border)] p-5 shrink-0 flex-col h-full overflow-y-auto space-y-6">
            {exam?.securitySettings?.cameraMonitoring !== false && (
              <div className="space-y-2">
                <h4 className="text-[10px] font-bold text-[var(--text-secondary)] uppercase tracking-wider">Live Proctor Monitor</h4>
