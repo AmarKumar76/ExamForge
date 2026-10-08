@@ -77,6 +77,8 @@ describe('Integration Test: Institution & Course Management APIs', () => {
 
   afterAll(async () => {
     await User.deleteMany({ email: /.*_.*@example\.com/ });
+    await Institution.deleteMany({ code: /^(ITI|STI|AITI|MIA)_/i });
+    await Course.deleteMany({ code: /^CS_/i });
     if (testInstitution) await Institution.findByIdAndDelete(testInstitution._id);
     if (testCourse) await Course.findByIdAndDelete(testCourse._id);
     await mongoose.connection.close();

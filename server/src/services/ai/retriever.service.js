@@ -11,7 +11,11 @@ class RetrieverService {
     const query = { courseId };
 
     if (Array.isArray(materialIds) && materialIds.length > 0) {
-      query.materialId = { $in: materialIds };
+      const mongoose = require('mongoose');
+      const validObjectIds = materialIds
+        .filter(Boolean)
+        .map((id) => (typeof id === 'string' && mongoose.Types.ObjectId.isValid(id) ? new mongoose.Types.ObjectId(id) : id));
+      query.materialId = { $in: validObjectIds };
     }
 
     const chunks = await MaterialChunk.find(query).limit(200);

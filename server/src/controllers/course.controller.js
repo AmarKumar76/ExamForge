@@ -1,4 +1,5 @@
 const courseService = require('../services/course.service');
+const auditService = require('../services/audit.service');
 const { validateCourseInput } = require('../validators/course.validator');
 
 /**
@@ -37,6 +38,16 @@ const create = async (req, res, next) => {
       description,
       instructorIds,
       studentIds,
+    });
+
+    auditService.logAudit({
+      user: req.user,
+      action: 'COURSE_CREATED',
+      resourceType: 'COURSE',
+      resourceId: course._id.toString(),
+      resourceName: `${course.code} - ${course.name}`,
+      courseId: course._id,
+      institutionId: course.institutionId,
     });
 
     return res.status(201).json({
@@ -93,6 +104,16 @@ const update = async (req, res, next) => {
     const { id } = req.params;
     const course = await courseService.updateCourse(id, req.body, req.user);
 
+    auditService.logAudit({
+      user: req.user,
+      action: 'COURSE_UPDATED',
+      resourceType: 'COURSE',
+      resourceId: course._id.toString(),
+      resourceName: `${course.code} - ${course.name}`,
+      courseId: course._id,
+      institutionId: course.institutionId,
+    });
+
     return res.status(200).json({
       success: true,
       message: 'Course updated successfully.',
@@ -121,6 +142,17 @@ const manageInstructors = async (req, res, next) => {
     }
 
     const course = await courseService.manageInstructors(id, instructorIds, action || 'add', req.user);
+
+    auditService.logAudit({
+      user: req.user,
+      action: action === 'remove' ? 'INSTRUCTOR_REMOVED' : 'INSTRUCTOR_ASSIGNED',
+      resourceType: 'COURSE',
+      resourceId: course._id.toString(),
+      resourceName: `${course.code} - ${course.name}`,
+      courseId: course._id,
+      institutionId: course.institutionId,
+      metadata: { instructorIds, action },
+    });
 
     return res.status(200).json({
       success: true,
@@ -151,6 +183,17 @@ const manageStudents = async (req, res, next) => {
 
     const course = await courseService.manageStudents(id, studentIds, action || 'add');
 
+    auditService.logAudit({
+      user: req.user,
+      action: action === 'remove' ? 'STUDENT_REMOVED' : 'STUDENT_ENROLLED',
+      resourceType: 'COURSE',
+      resourceId: course._id.toString(),
+      resourceName: `${course.code} - ${course.name}`,
+      courseId: course._id,
+      institutionId: course.institutionId,
+      metadata: { studentIds, action },
+    });
+
     return res.status(200).json({
       success: true,
       message: 'Student enrollment updated successfully.',
@@ -170,6 +213,16 @@ const selfEnroll = async (req, res, next) => {
     const { id } = req.params;
     const course = await courseService.selfEnrollStudent(id, req.user);
 
+    auditService.logAudit({
+      user: req.user,
+      action: 'STUDENT_ENROLLED',
+      resourceType: 'COURSE',
+      resourceId: course._id.toString(),
+      resourceName: `${course.code} - ${course.name}`,
+      courseId: course._id,
+      institutionId: course.institutionId,
+    });
+
     return res.status(200).json({
       success: true,
       message: 'Successfully enrolled in course.',
@@ -188,6 +241,16 @@ const archive = async (req, res, next) => {
   try {
     const { id } = req.params;
     const course = await courseService.archiveCourse(id);
+
+    auditService.logAudit({
+      user: req.user,
+      action: 'COURSE_ARCHIVED',
+      resourceType: 'COURSE',
+      resourceId: course._id.toString(),
+      resourceName: `${course.code} - ${course.name}`,
+      courseId: course._id,
+      institutionId: course.institutionId,
+    });
 
     return res.status(200).json({
       success: true,

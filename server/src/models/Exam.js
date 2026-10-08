@@ -38,6 +38,18 @@ const examSchema = new mongoose.Schema(
       type: Number,
       default: 40,
     },
+    folderIds: [
+      {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'QuestionFolder',
+      },
+    ],
+    questionSourceFolders: [
+      {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'QuestionFolder',
+      },
+    ],
     questionIds: [
       {
         type: mongoose.Schema.Types.ObjectId,
@@ -55,7 +67,7 @@ const examSchema = new mongoose.Schema(
     },
     status: {
       type: String,
-      enum: ['DRAFT', 'PUBLISHED', 'SCHEDULED', 'ACTIVE', 'COMPLETED', 'ENDED', 'ARCHIVED'],
+      enum: ['DRAFT', 'PUBLISHED', 'SCHEDULED', 'ACTIVE', 'COMPLETED', 'ENDED', 'ARCHIVED', 'CANCELLED'],
       default: 'DRAFT',
       required: true,
       index: true,
@@ -72,6 +84,14 @@ const examSchema = new mongoose.Schema(
       type: mongoose.Schema.Types.ObjectId,
       ref: 'User',
       required: [true, 'Creator User ID is required'],
+    },
+    securitySettings: {
+      fullscreenRequired: { type: Boolean, default: true },
+      cameraMonitoring: { type: Boolean, default: true },
+      faceDetection: { type: Boolean, default: true },
+      multiplePersonDetection: { type: Boolean, default: true },
+      tabSwitchMonitoring: { type: Boolean, default: true },
+      copyPasteMonitoring: { type: Boolean, default: true },
     },
   },
   {

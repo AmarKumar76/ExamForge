@@ -7,9 +7,23 @@ const connectDB = async () => {
       throw new Error('MongoDB connection URI (MONGO_URI) is missing.');
     }
 
-    const conn = await mongoose.connect(config.mongoUri, {
-      autoIndex: true,
-    });
+    let conn;
+    try {
+      conn = await mongoose.connect(config.mongoUri, {
+        autoIndex: true,
+        serverSelectionTimeoutMS: 5000,
+      });
+    } catch (primaryErr) {
+      console.warn(`⚠️ Primary MongoDB Connection Failed (${primaryErr.message}). Trying local MongoDB fallback...`);
+      try {
+        conn = await mongoose.connect('mongodb://127.0.0.1:27017/examforge', {
+          autoIndex: true,
+          serverSelectionTimeoutMS: 3000,
+        });
+      } catch (localErr) {
+        throw primaryErr;
+      }
+    }
 
     if (config.env !== 'test') {
       console.log(`✅ MongoDB Connected: ${conn.connection.host} [Database: ${conn.connection.name}]`);

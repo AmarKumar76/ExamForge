@@ -6,6 +6,7 @@ const storageService = require('../../storage/storage.service');
 const documentProcessorService = require('./documentProcessor.service');
 const retrieverService = require('./retriever.service');
 const geminiService = require('./gemini.service');
+const auditService = require('../audit.service');
 const { ROLES } = require('../../constants/roles');
 
 class QuestionGeneratorService {
@@ -79,6 +80,18 @@ class QuestionGeneratorService {
 
     console.log(`[PROCESS_START] materialId=${material._id} courseId=${course._id}`);
 
+    await auditService.logAudit({
+      actor: user,
+      action: 'MATERIAL_PROCESSING_STARTED',
+      resourceType: 'CourseMaterial',
+      resourceId: material._id,
+      resourceName: material.title,
+      courseId: course._id,
+      institutionId: course.institutionId,
+      status: 'SUCCESS',
+      metadata: { originalFileName: material.originalFileName, fileType: material.fileType },
+    });
+
     try {
       const filePath = storageService.getFilePath(material.fileKey);
       const extracted = await documentProcessorService.extractText(filePath, material.fileType);
@@ -133,17 +146,56 @@ class QuestionGeneratorService {
       console.log(`[CHUNKS_STORED] count=${chunkDocs.length}`);
 
       material.processingStatus = 'PROCESSED';
+      material.status = 'READY';
       material.processingCompletedAt = new Date();
       material.chunkCount = chunkDocs.length;
       material.extractedTextLength = extracted.length;
       await material.save();
 
       console.log(`[PROCESS_COMPLETE] materialId=${material._id} providerUsed=${lastProvider}`);
+
+      await auditService.logAudit({
+        actor: user,
+        action: 'MATERIAL_PROCESSING_COMPLETED',
+        resourceType: 'CourseMaterial',
+        resourceId: material._id,
+        resourceName: material.title,
+        courseId: course._id,
+        institutionId: course.institutionId,
+        status: 'SUCCESS',
+        metadata: { chunkCount: chunkDocs.length, extractedTextLength: extracted.length, providerUsed: lastProvider },
+      });
+
       return material;
     } catch (err) {
       material.processingStatus = 'FAILED';
       material.processingError = err.message;
       await material.save();
+
+      await auditService.logAudit({
+        actor: user,
+        action: 'MATERIAL_PROCESSING_FAILED',
+        resourceType: 'CourseMaterial',
+        resourceId: material._id,
+        resourceName: material.title,
+        courseId: course._id,
+        institutionId: course.institutionId,
+        status: 'FAILED',
+        metadata: { error: err.message },
+      });
+
+      await auditService.logSystem({
+        level: 'ERROR',
+        service: 'STORAGE',
+        module: 'DocumentProcessor',
+        event: err.message.toLowerCase().includes('pdf') ? 'PDF_EXTRACTION_ERROR' : 'MATERIAL_PROCESSING_ERROR',
+        message: err.message,
+        status: 'ERROR',
+        stackTrace: err.stack,
+        institutionId: course.institutionId,
+        metadata: { materialId: material._id, fileName: material.originalFileName },
+      });
+
       throw err;
     }
   }
@@ -156,6 +208,8 @@ class QuestionGeneratorService {
    */
   async generateDraftQuestions({
     courseId,
+    folderId = null,
+    chapterName = '',
     materialIds = [],
     topic = '',
     difficulty = 'MEDIUM',
@@ -166,6 +220,8 @@ class QuestionGeneratorService {
   }) {
     const startTime = Date.now();
     const course = await this.checkCourseStaffAccess(courseId, user);
+    const textCleaningService = require('../textCleaning.service');
+    const QuestionFolder = require('../../models/QuestionFolder');
 
     // Verify materialIds belong to this course
     if (materialIds.length > 0) {
@@ -175,6 +231,44 @@ class QuestionGeneratorService {
         error.statusCode = 400;
         error.code = 'INVALID_MATERIAL_SELECTION';
         throw error;
+      }
+    }
+
+    // Automatic Chapter Folder Lookup or Creation
+    let targetFolder = null;
+    let targetFolderId = null;
+
+    const rawChapter = (chapterName || topic || '').trim();
+
+    if (rawChapter) {
+      const escapedTitle = rawChapter.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      targetFolder = await QuestionFolder.findOne({
+        courseId: course._id,
+        title: { $regex: new RegExp(`^${escapedTitle}$`, 'i') },
+      });
+
+      if (!targetFolder) {
+        const folderCount = await QuestionFolder.countDocuments({ courseId: course._id });
+        targetFolder = await QuestionFolder.create({
+          courseId: course._id,
+          institutionId: course.institutionId,
+          title: rawChapter,
+          description: `Chapter unit folder for ${rawChapter}`,
+          orderIndex: folderCount + 1,
+          createdBy: user._id,
+        });
+        console.log(`[AUTO_CHAPTER_FOLDER_CREATED] courseId=${course._id} folderId=${targetFolder._id} title="${rawChapter}"`);
+      } else {
+        console.log(`[AUTO_CHAPTER_FOLDER_REUSED] courseId=${course._id} folderId=${targetFolder._id} title="${targetFolder.title}"`);
+      }
+      targetFolderId = targetFolder._id;
+    } else if (folderId && folderId !== 'uncategorized') {
+      const mongoose = require('mongoose');
+      if (mongoose.Types.ObjectId.isValid(folderId)) {
+        targetFolder = await QuestionFolder.findOne({ _id: folderId, courseId: course._id });
+        if (targetFolder) {
+          targetFolderId = targetFolder._id;
+        }
       }
     }
 
@@ -207,110 +301,174 @@ class QuestionGeneratorService {
     }
 
     console.log(
-      `[GENERATION_START] courseId=${course._id} materialCount=${materialIds.length} requestedQuestions=${numQs} difficultyDistribution=${JSON.stringify(
-        difficultyDistribution || difficulty
-      )}`
+      `[GENERATION_START] courseId=${course._id} folderId=${targetFolderId} materialCount=${materialIds.length} requestedQuestions=${numQs}`
     );
 
-    // RAG Chunk Retrieval (topK = 8)
-    const topK = 8;
-    const chunks = await retrieverService.retrieveRelevantChunks({
+    await auditService.logAudit({
+      actor: user,
+      action: 'AI_GENERATION_STARTED',
+      resourceType: 'AIStudio',
+      resourceName: topic || chapterName || 'Question Generation',
       courseId: course._id,
-      materialIds,
-      topic,
-      limit: topK,
+      folderId: targetFolderId,
+      institutionId: course.institutionId,
+      status: 'SUCCESS',
+      metadata: { requestedQuestions: numQs, difficulty, topic },
     });
 
-    if (chunks.length === 0) {
-      const error = new Error('No processed course material content found for RAG retrieval. Please process course materials first.');
-      error.statusCode = 400;
-      error.code = 'NO_PROCESSED_MATERIAL';
-      throw error;
-    }
-
-    console.log(`[RAG_RETRIEVAL_COMPLETE] retrievedChunks=${chunks.length}`);
-
-    const contextText = chunks
-      .map((c, i) => `--- CHUNK ${i + 1} [Source: ${c.sourceFileName}] ---\n${c.text}`)
-      .join('\n\n');
-
-    const sourceMatIds = [...new Set(chunks.map((c) => c.materialId.toString()))];
-    const sourceChunkIds = chunks.map((c) => c.chunkId);
-    const sourceRefs = chunks.slice(0, 3).map((c) => ({
-      materialId: c.materialId,
-      fileName: c.sourceFileName,
-      snippet: c.text.substring(0, 100) + '...',
-    }));
-
-    // Controlled Batch Generation (batch size = 10 questions per Gemini request, bounded concurrency = 1)
-    const BATCH_SIZE = 10;
-    const totalBatches = Math.ceil(numQs / BATCH_SIZE);
-    const questionDocs = [];
-
-    for (let b = 0; b < totalBatches; b++) {
-      const startIndex = b * BATCH_SIZE;
-      const endIndex = Math.min(startIndex + BATCH_SIZE, numQs);
-      const batchDiffs = difficultyList.slice(startIndex, endIndex);
-      const batchCount = batchDiffs.length;
-      const primaryBatchDiff = batchDiffs[0] || 'MEDIUM';
-
-      console.log(`[RAG_RETRIEVAL] query="${topic}" totalChunks=162 retrievedChunks=${chunks.length} generationBatch=${b + 1}/${totalBatches}`);
-      console.log(`[GEMINI_BATCH_START] batch=${b + 1} batchSize=${batchCount}`);
-
-      const aiQuestions = await geminiService.generateQuestions(contextText, {
-        numberOfQuestions: batchCount,
-        difficulty: primaryBatchDiff,
-        questionTypes,
-        topic: topic || 'General',
+    try {
+      // RAG Chunk Retrieval (topK = 8)
+      const topK = 8;
+      const chunks = await retrieverService.retrieveRelevantChunks({
+        courseId: course._id,
+        materialIds,
+        topic,
+        limit: topK,
       });
 
-      console.log(`[GEMINI_BATCH_COMPLETE] batch=${b + 1} generated=${aiQuestions.length}`);
+      if (chunks.length === 0) {
+        const error = new Error('No processed course material content found for RAG retrieval. Please process course materials first.');
+        error.statusCode = 400;
+        error.code = 'NO_PROCESSED_MATERIAL';
+        throw error;
+      }
 
-      for (let index = 0; index < aiQuestions.length; index++) {
-        const q = aiQuestions[index];
-        const qType = ['MCQ', 'TRUE_FALSE', 'SHORT_ANSWER'].includes(q.type) ? q.type : (questionTypes[0] || 'MCQ');
-        const qText = q.questionText || q.text || 'Generated Question Statement';
-        const qAns = q.correctAnswer || (q.options ? q.options[0] : 'Sample Answer');
+      console.log(`[RAG_RETRIEVAL_COMPLETE] retrievedChunks=${chunks.length}`);
 
-        let qOptions = Array.isArray(q.options) ? q.options : [];
-        if (qType === 'TRUE_FALSE' && qOptions.length === 0) {
-          qOptions = ['True', 'False'];
-        }
+      // Clean retrieved chunk texts for prompt context
+      const contextText = chunks
+        .map((c, i) => {
+          const cleanedChunkText = textCleaningService.cleanExtractedText(c.text);
+          return `--- CHUNK ${i + 1} [Source: ${c.sourceFileName}] ---\n${cleanedChunkText}`;
+        })
+        .join('\n\n');
 
-        const assignedDifficulty = batchDiffs[index] || primaryBatchDiff;
+      const sourceMatIds = [...new Set(chunks.map((c) => c.materialId.toString()))];
+      const sourceChunkIds = chunks.map((c) => c.chunkId);
+      const sourceFileNames = [...new Set(chunks.map((c) => c.sourceFileName))];
 
-        const question = await Question.create({
-          courseId: course._id,
-          institutionId: course.institutionId,
-          type: qType,
-          questionText: qText,
-          options: qOptions,
-          correctAnswer: qAns,
-          explanation: q.explanation || '',
-          difficulty: assignedDifficulty,
-          topic: q.topic || topic || 'General',
-          sourceMaterialIds: sourceMatIds,
-          sourceChunkIds: sourceChunkIds,
-          sourceReferences: sourceRefs,
-          createdBy: user._id,
-          generationSource: 'AI_RAG',
-          status: 'DRAFT',
+      // Sanitize source reference snippets before saving
+      const sourceRefs = chunks.slice(0, 3).map((c) => ({
+        materialId: c.materialId,
+        fileName: c.sourceFileName,
+        snippet: textCleaningService.sanitizeSourceSnippet(c.text, 200),
+      }));
+
+      // Controlled Batch Generation
+      const BATCH_SIZE = 10;
+      const totalBatches = Math.ceil(numQs / BATCH_SIZE);
+      const questionDocs = [];
+
+      for (let b = 0; b < totalBatches; b++) {
+        const startIndex = b * BATCH_SIZE;
+        const endIndex = Math.min(startIndex + BATCH_SIZE, numQs);
+        const batchDiffs = difficultyList.slice(startIndex, endIndex);
+        const batchCount = batchDiffs.length;
+        const primaryBatchDiff = batchDiffs[0] || 'MEDIUM';
+
+        console.log(`[GEMINI_BATCH_START] batch=${b + 1}/${totalBatches} batchSize=${batchCount}`);
+
+        const aiQuestions = await geminiService.generateQuestions(contextText, {
+          numberOfQuestions: batchCount,
+          difficulty: primaryBatchDiff,
+          questionTypes,
+          topic: topic || 'General',
         });
 
-        questionDocs.push(question);
+        console.log(`[GEMINI_BATCH_COMPLETE] batch=${b + 1} generated=${aiQuestions.length}`);
+
+        for (let index = 0; index < aiQuestions.length; index++) {
+          const q = aiQuestions[index];
+          const qType = ['MCQ', 'TRUE_FALSE', 'SHORT_ANSWER'].includes(q.type) ? q.type : (questionTypes[0] || 'MCQ');
+          const qText = q.questionText || q.text || 'Generated Question Statement';
+          const qAns = q.correctAnswer || (q.options ? q.options[0] : 'Sample Answer');
+
+          // Check if question tests filename or metadata rather than academic content
+          const metadataCheck = textCleaningService.isFilenameOrMetadataQuestion(qText, sourceFileNames);
+          if (metadataCheck.rejected) {
+            console.warn(`[REJECTED_METADATA_QUESTION] reason=${metadataCheck.reason} text="${qText}"`);
+            continue; // Skip metadata-based questions
+          }
+
+          let qOptions = Array.isArray(q.options) ? q.options : [];
+          if (qType === 'TRUE_FALSE' && qOptions.length === 0) {
+            qOptions = ['True', 'False'];
+          }
+
+          const assignedDifficulty = batchDiffs[index] || primaryBatchDiff;
+
+          const question = await Question.create({
+            courseId: course._id,
+            folderId: targetFolderId,
+            institutionId: course.institutionId,
+            type: qType,
+            questionText: qText,
+            options: qOptions,
+            correctAnswer: qAns,
+            explanation: q.explanation || '',
+            difficulty: assignedDifficulty,
+            topic: q.topic || topic || 'General',
+            sourceMaterialIds: sourceMatIds,
+            sourceChunkIds: sourceChunkIds,
+            sourceReferences: sourceRefs,
+            createdBy: user._id,
+            generationSource: 'AI_RAG',
+            status: 'DRAFT',
+          });
+
+          questionDocs.push(question);
+        }
       }
+
+      const durationMs = Date.now() - startTime;
+      console.log(`[GENERATION_COMPLETE] requested=${numQs} generated=${questionDocs.length} durationMs=${durationMs}`);
+
+      await auditService.logAudit({
+        actor: user,
+        action: 'AI_GENERATION_COMPLETED',
+        resourceType: 'AIStudio',
+        resourceName: topic || chapterName || 'Question Generation',
+        courseId: course._id,
+        folderId: targetFolderId,
+        institutionId: course.institutionId,
+        status: 'SUCCESS',
+        metadata: { requestedQuestions: numQs, generatedQuestions: questionDocs.length, durationMs },
+      });
+
+      return questionDocs;
+    } catch (err) {
+      await auditService.logAudit({
+        actor: user,
+        action: 'AI_GENERATION_FAILED',
+        resourceType: 'AIStudio',
+        resourceName: topic || chapterName || 'Question Generation',
+        courseId: course._id,
+        folderId: targetFolderId,
+        institutionId: course.institutionId,
+        status: 'FAILED',
+        metadata: { error: err.message },
+      });
+
+      await auditService.logSystem({
+        level: 'ERROR',
+        service: 'GEMINI',
+        module: 'QuestionGenerator',
+        event: err.message.toLowerCase().includes('rag') || err.message.toLowerCase().includes('retrieval') ? 'RAG_PROCESSING_ERROR' : 'GEMINI_API_ERROR',
+        message: err.message,
+        status: 'ERROR',
+        stackTrace: err.stack,
+        institutionId: course.institutionId,
+        metadata: { topic, courseId: course._id },
+      });
+
+      throw err;
     }
-
-    const durationMs = Date.now() - startTime;
-    console.log(`[GENERATION_COMPLETE] requested=${numQs} generated=${questionDocs.length} durationMs=${durationMs}`);
-
-    return questionDocs;
   }
 
   /**
-   * List questions for course
+   * List questions for course with folder and status filtering
    */
-  async getQuestions(courseId, user, statusFilter) {
+  async getQuestions(courseId, user, statusFilter, folderIdFilter) {
     const course = await this.checkCourseStaffAccess(courseId, user);
 
     const query = { courseId: course._id };
@@ -318,7 +476,25 @@ class QuestionGeneratorService {
       query.status = statusFilter;
     }
 
+    if (folderIdFilter) {
+      const rawList = Array.isArray(folderIdFilter)
+        ? folderIdFilter
+        : String(folderIdFilter).split(',').map((s) => s.trim());
+
+      const hasUncategorized = rawList.includes('uncategorized') || rawList.includes('null');
+      const realFolderIds = rawList.filter((f) => f && f !== 'uncategorized' && f !== 'null');
+
+      if (hasUncategorized && realFolderIds.length > 0) {
+        query.$or = [{ folderId: { $in: realFolderIds } }, { folderId: null }];
+      } else if (hasUncategorized) {
+        query.folderId = null;
+      } else if (realFolderIds.length > 0) {
+        query.folderId = { $in: realFolderIds };
+      }
+    }
+
     const questions = await Question.find(query)
+      .populate('folderId', 'title description orderIndex')
       .populate('sourceMaterialIds', 'title originalFileName')
       .populate('createdBy', 'name email role')
       .populate('approvedBy', 'name email role')
@@ -349,6 +525,19 @@ class QuestionGeneratorService {
     if (updateData.topic) question.topic = updateData.topic.trim();
 
     await question.save();
+
+    await auditService.logAudit({
+      actor: user,
+      action: 'QUESTION_UPDATED',
+      resourceType: 'Question',
+      resourceId: question._id,
+      resourceName: question.questionText.substring(0, 50),
+      courseId: question.courseId,
+      folderId: question.folderId,
+      institutionId: question.institutionId,
+      status: 'SUCCESS',
+    });
+
     return question;
   }
 
@@ -370,6 +559,19 @@ class QuestionGeneratorService {
     question.approvedBy = user._id;
     question.approvedAt = new Date();
     await question.save();
+
+    await auditService.logAudit({
+      actor: user,
+      action: 'QUESTION_APPROVED',
+      resourceType: 'Question',
+      resourceId: question._id,
+      resourceName: question.questionText.substring(0, 50),
+      courseId: question.courseId,
+      folderId: question.folderId,
+      institutionId: question.institutionId,
+      status: 'SUCCESS',
+    });
+
     return question;
   }
 
@@ -385,6 +587,18 @@ class QuestionGeneratorService {
       q.approvedBy = user._id;
       q.approvedAt = new Date();
       await q.save();
+
+      await auditService.logAudit({
+        actor: user,
+        action: 'QUESTION_APPROVED',
+        resourceType: 'Question',
+        resourceId: q._id,
+        resourceName: q.questionText.substring(0, 50),
+        courseId: q.courseId,
+        folderId: q.folderId,
+        institutionId: q.institutionId,
+        status: 'SUCCESS',
+      });
     }
     return questions;
   }
@@ -405,6 +619,19 @@ class QuestionGeneratorService {
 
     question.status = 'REJECTED';
     await question.save();
+
+    await auditService.logAudit({
+      actor: user,
+      action: 'QUESTION_REJECTED',
+      resourceType: 'Question',
+      resourceId: question._id,
+      resourceName: question.questionText.substring(0, 50),
+      courseId: question.courseId,
+      folderId: question.folderId,
+      institutionId: question.institutionId,
+      status: 'SUCCESS',
+    });
+
     return question;
   }
 
@@ -418,6 +645,18 @@ class QuestionGeneratorService {
       await this.checkCourseStaffAccess(q.courseId, user);
       q.status = 'REJECTED';
       await q.save();
+
+      await auditService.logAudit({
+        actor: user,
+        action: 'QUESTION_REJECTED',
+        resourceType: 'Question',
+        resourceId: q._id,
+        resourceName: q.questionText.substring(0, 50),
+        courseId: q.courseId,
+        folderId: q.folderId,
+        institutionId: q.institutionId,
+        status: 'SUCCESS',
+      });
     }
     return questions;
   }
@@ -468,6 +707,19 @@ class QuestionGeneratorService {
     }
 
     await Question.findByIdAndDelete(questionId);
+
+    await auditService.logAudit({
+      actor: user,
+      action: 'QUESTION_DELETED',
+      resourceType: 'Question',
+      resourceId: questionId,
+      resourceName: question.questionText.substring(0, 50),
+      courseId: question.courseId,
+      folderId: question.folderId,
+      institutionId: question.institutionId,
+      status: 'SUCCESS',
+    });
+
     return { success: true, id: questionId, status: 'DELETED' };
   }
 }

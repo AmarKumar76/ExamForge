@@ -5,16 +5,16 @@ const auditLogSchema = new mongoose.Schema(
     actorId: {
       type: mongoose.Schema.Types.ObjectId,
       ref: 'User',
-      required: true,
+      default: null,
       index: true,
     },
     actorName: {
       type: String,
-      default: '',
+      default: 'System',
     },
     actorRole: {
       type: String,
-      required: true,
+      default: 'SYSTEM',
     },
     action: {
       type: String,
@@ -30,18 +30,43 @@ const auditLogSchema = new mongoose.Schema(
       type: String,
       default: '',
     },
+    resourceName: {
+      type: String,
+      default: '',
+    },
+    courseId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'Course',
+      default: null,
+      index: true,
+    },
+    folderId: {
+      type: String,
+      default: '',
+    },
     institutionId: {
       type: mongoose.Schema.Types.ObjectId,
       ref: 'Institution',
+      default: null,
       index: true,
     },
-    metadata: {
-      type: mongoose.Schema.Types.Mixed,
-      default: {},
+    status: {
+      type: String,
+      enum: ['SUCCESS', 'FAILED', 'DENIED'],
+      default: 'SUCCESS',
+      index: true,
     },
     ipAddress: {
       type: String,
       default: '',
+    },
+    userAgent: {
+      type: String,
+      default: '',
+    },
+    metadata: {
+      type: mongoose.Schema.Types.Mixed,
+      default: {},
     },
   },
   {

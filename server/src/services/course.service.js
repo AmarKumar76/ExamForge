@@ -1,6 +1,9 @@
 const Course = require('../models/Course');
 const Institution = require('../models/Institution');
 const User = require('../models/User');
+const Question = require('../models/Question');
+const Exam = require('../models/Exam');
+const CourseMaterial = require('../models/CourseMaterial');
 const { ROLES } = require('../constants/roles');
 
 class CourseService {
@@ -126,7 +129,21 @@ class CourseService {
       }
     }
 
-    return course;
+    const [questionsCount, materialsCount, examsCount] = await Promise.all([
+      Question.countDocuments({ courseId: course._id }).catch(() => 0),
+      CourseMaterial.countDocuments({ courseId: course._id }).catch(() => 0),
+      Exam.countDocuments({ courseId: course._id }).catch(() => 0),
+    ]);
+
+    const courseObj = course.toObject();
+    courseObj.stats = {
+      questionsCount,
+      materialsCount,
+      examsCount,
+      studentsCount: course.studentIds?.length || 0,
+    };
+
+    return courseObj;
   }
 
   /**
@@ -171,9 +188,20 @@ class CourseService {
   }
 
   /**
+   * Helper to safely extract string ID from string, ObjectId, or object
+   */
+  _normalizeId(item) {
+    if (!item) return null;
+    if (typeof item === 'string') return item.trim();
+    if (item._id) return item._id.toString();
+    if (item.id) return item.id.toString();
+    return item.toString();
+  }
+
+  /**
    * Assign or remove instructors from course
    */
-  async manageInstructors(courseId, instructorIds = [], action = 'add', user = null) {
+  async manageInstructors(courseId, rawInstructorIds = [], action = 'add', user = null) {
     const course = await Course.findById(courseId);
     if (!course) {
       const error = new Error('Course not found.');
@@ -191,6 +219,10 @@ class CourseService {
       }
     }
 
+    const instructorIds = (Array.isArray(rawInstructorIds) ? rawInstructorIds : [rawInstructorIds])
+      .map((item) => this._normalizeId(item))
+      .filter(Boolean);
+
     if (instructorIds.length > 0 && (action === 'add' || action === 'set')) {
       const targetInstructors = await User.find({ _id: { $in: instructorIds } });
       if (targetInstructors.length !== instructorIds.length) {
@@ -201,8 +233,8 @@ class CourseService {
       }
 
       for (const inst of targetInstructors) {
-        if (inst.institutionId && inst.institutionId.toString() !== course.institutionId.toString()) {
-          const error = new Error(`Instructor ${inst.name || inst.email} belongs to a different institution and cannot be assigned to this course.`);
+        if (inst.institutionId && course.institutionId && inst.institutionId.toString() !== course.institutionId.toString()) {
+          const error = new Error('Instructor and course must belong to the same institution.');
           error.statusCode = 400;
           error.code = 'CROSS_INSTITUTION_INSTRUCTOR';
           throw error;
@@ -212,17 +244,16 @@ class CourseService {
 
     if (action === 'add') {
       instructorIds.forEach((instId) => {
-        if (!course.instructorIds.some((id) => id.toString() === instId.toString())) {
+        if (!course.instructorIds.some((id) => id.toString() === instId)) {
           course.instructorIds.push(instId);
         }
       });
     } else if (action === 'remove') {
       course.instructorIds = course.instructorIds.filter(
-        (id) => !instructorIds.some((instId) => instId.toString() === id.toString())
+        (id) => !instructorIds.some((instId) => instId === id.toString())
       );
     } else if (action === 'set') {
-      // Deduplicate
-      const uniqueIds = [...new Set(instructorIds.map((id) => id.toString()))];
+      const uniqueIds = [...new Set(instructorIds)];
       course.instructorIds = uniqueIds;
     }
 
@@ -233,7 +264,7 @@ class CourseService {
   /**
    * Enroll or unenroll students from course
    */
-  async manageStudents(courseId, studentIds, action = 'add') {
+  async manageStudents(courseId, rawStudentIds = [], action = 'add') {
     const course = await Course.findById(courseId);
     if (!course) {
       const error = new Error('Course not found.');
@@ -242,18 +273,42 @@ class CourseService {
       throw error;
     }
 
+    const studentIds = (Array.isArray(rawStudentIds) ? rawStudentIds : [rawStudentIds])
+      .map((item) => this._normalizeId(item))
+      .filter(Boolean);
+
+    if (studentIds.length > 0 && (action === 'add' || action === 'set')) {
+      const targetStudents = await User.find({ _id: { $in: studentIds } });
+      if (targetStudents.length !== studentIds.length) {
+        const error = new Error('One or more specified student user IDs do not exist.');
+        error.statusCode = 400;
+        error.code = 'INVALID_STUDENT_ID';
+        throw error;
+      }
+
+      for (const stud of targetStudents) {
+        if (stud.institutionId && course.institutionId && stud.institutionId.toString() !== course.institutionId.toString()) {
+          const error = new Error('Student and course must belong to the same institution.');
+          error.statusCode = 400;
+          error.code = 'CROSS_INSTITUTION_ENROLLMENT_FORBIDDEN';
+          throw error;
+        }
+      }
+    }
+
     if (action === 'add') {
       studentIds.forEach((studId) => {
-        if (!course.studentIds.includes(studId)) {
+        if (!course.studentIds.some((id) => id.toString() === studId)) {
           course.studentIds.push(studId);
         }
       });
     } else if (action === 'remove') {
       course.studentIds = course.studentIds.filter(
-        (id) => !studentIds.includes(id.toString())
+        (id) => !studentIds.some((studId) => studId === id.toString())
       );
     } else if (action === 'set') {
-      course.studentIds = studentIds;
+      const uniqueIds = [...new Set(studentIds)];
+      course.studentIds = uniqueIds;
     }
 
     await course.save();

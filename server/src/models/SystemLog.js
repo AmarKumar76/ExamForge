@@ -4,17 +4,22 @@ const systemLogSchema = new mongoose.Schema(
   {
     level: {
       type: String,
-      enum: ['INFO', 'WARN', 'ERROR'],
+      enum: ['INFO', 'WARNING', 'ERROR', 'CRITICAL'],
       default: 'INFO',
       required: true,
       index: true,
     },
-    event: {
+    service: {
       type: String,
-      required: true,
+      default: 'API',
       index: true,
     },
     module: {
+      type: String,
+      default: 'SYSTEM',
+      index: true,
+    },
+    event: {
       type: String,
       required: true,
       index: true,
@@ -36,6 +41,15 @@ const systemLogSchema = new mongoose.Schema(
       type: String,
       enum: ['SUCCESS', 'FAILED', 'PENDING'],
       default: 'SUCCESS',
+      index: true,
+    },
+    requestId: {
+      type: String,
+      default: '',
+    },
+    stackTrace: {
+      type: String,
+      default: '',
     },
     metadata: {
       type: mongoose.Schema.Types.Mixed,

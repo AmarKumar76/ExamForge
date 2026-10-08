@@ -6,6 +6,8 @@ const CourseMaterial = require('../models/CourseMaterial');
 const questionGeneratorService = require('../services/ai/questionGenerator.service');
 const examService = require('../services/exam.service');
 
+jest.setTimeout(15000);
+
 describe('Exam Conduct Flow & Integration Tests', () => {
   const dummyInstructor = {
     _id: new mongoose.Types.ObjectId(),

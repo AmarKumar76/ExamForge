@@ -9,7 +9,6 @@ const startServer = async () => {
     // 1. Connect MongoDB
     await connectDB();
 
-    // 2. Start HTTP Server
     const PORT = config.port;
     server = app.listen(PORT, '0.0.0.0', () => {
       if (config.env !== 'test') {
@@ -17,6 +16,19 @@ const startServer = async () => {
         console.log(`🔗 Health Check: http://localhost:${PORT}/api/v1/health`);
         console.log(`🔐 Auth Endpoints: http://localhost:${PORT}/api/v1/auth`);
       }
+    });
+
+    const { initSocketServer } = require('./src/sockets/socket.server');
+    initSocketServer(server);
+
+    server.on('error', (error) => {
+      if (error.code === 'EADDRINUSE') {
+        console.error(`❌ Port ${PORT} is already in use by another process.`);
+        console.error(`👉 Solution: Stop the process using port ${PORT} or change PORT in .env.`);
+      } else {
+        console.error('❌ Server error:', error.message);
+      }
+      process.exit(1);
     });
 
     // Handle Unhandled Rejections & Uncaught Exceptions

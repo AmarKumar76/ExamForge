@@ -20,6 +20,12 @@ router.get(
 );
 
 router.get(
+  '/counts',
+  requireRole(ROLES.SUPER_ADMIN, ROLES.INSTITUTION_ADMIN),
+  auditController.getLogCounts
+);
+
+router.get(
   '/analytics',
   requireRole(ROLES.SUPER_ADMIN, ROLES.INSTITUTION_ADMIN),
   auditController.getAnalytics

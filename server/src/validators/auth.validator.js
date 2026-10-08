@@ -63,7 +63,54 @@ const validateLoginInput = (body = {}) => {
   };
 };
 
+/**
+ * Validates forgot password request payload
+ * @param {object} body 
+ * @returns {object} { isValid, errors }
+ */
+const validateForgotPasswordInput = (body = {}) => {
+  const errors = [];
+  const { email } = body;
+
+  const emailRegex = /^\w+([.-]?\w+)*@\w+([.-]?\w+)*(\.\w{2,})+$/;
+  if (!email || typeof email !== 'string' || !emailRegex.test(email.trim())) {
+    errors.push('A valid email address is required.');
+  }
+
+  return {
+    isValid: errors.length === 0,
+    errors,
+  };
+};
+
+/**
+ * Validates reset password request payload
+ * @param {object} body 
+ * @returns {object} { isValid, errors }
+ */
+const validateResetPasswordInput = (body = {}) => {
+  const errors = [];
+  const { token, password } = body;
+
+  if (!token || typeof token !== 'string' || token.trim().length === 0) {
+    errors.push('Reset token is required.');
+  }
+
+  if (!password || typeof password !== 'string') {
+    errors.push('Password is required.');
+  } else if (password.length < 6) {
+    errors.push('Password must be at least 6 characters long.');
+  }
+
+  return {
+    isValid: errors.length === 0,
+    errors,
+  };
+};
+
 module.exports = {
   validateRegisterInput,
   validateLoginInput,
+  validateForgotPasswordInput,
+  validateResetPasswordInput,
 };

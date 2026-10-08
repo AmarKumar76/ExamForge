@@ -34,7 +34,7 @@ const examAttemptSchema = new mongoose.Schema(
     ],
     status: {
       type: String,
-      enum: ['IN_PROGRESS', 'SUBMITTED', 'GRADED'],
+      enum: ['IN_PROGRESS', 'SUBMITTED', 'GRADED', 'PUBLISHED'],
       default: 'IN_PROGRESS',
       required: true,
       index: true,
@@ -46,6 +46,42 @@ const examAttemptSchema = new mongoose.Schema(
     submittedAt: {
       type: Date,
       default: null,
+    },
+    resultPublishedAt: {
+      type: Date,
+      default: null,
+    },
+    resultPublishedBy: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'User',
+    },
+    integritySignals: [
+      {
+        signalType: { type: String, required: true },
+        timestamp: { type: Date, default: Date.now },
+        severity: { type: String, enum: ['LOW', 'MEDIUM', 'HIGH'], default: 'MEDIUM' },
+        source: { type: String, default: 'CLIENT' },
+        metadata: { type: mongoose.Schema.Types.Mixed, default: {} },
+      }
+    ],
+    questionTimings: [
+      {
+        questionId: { type: mongoose.Schema.Types.ObjectId, ref: 'Question' },
+        openedAt: { type: Date },
+        answeredAt: { type: Date },
+        timeSpentSeconds: { type: Number, default: 0 }
+      }
+    ],
+    integritySummary: {
+      totalSignals: { type: Number, default: 0 },
+      riskLevel: { type: String, enum: ['LOW', 'MEDIUM', 'HIGH'], default: 'LOW' },
+      signalCounts: { type: mongoose.Schema.Types.Mixed, default: {} },
+      aiSummary: { type: String, default: '' },
+      aiRecommendation: { type: String, default: '' },
+      reviewStatus: { type: String, enum: ['UNREVIEWED', 'PENDING', 'REVIEWING', 'REVIEWED', 'FLAGGED', 'ESCALATED'], default: 'UNREVIEWED' },
+      instructorNote: { type: String, default: '' },
+      reviewedAt: { type: Date, default: null },
+      reviewedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User', default: null }
     },
     answers: [
       {

@@ -3,8 +3,12 @@ const ExamAttempt = require('../models/ExamAttempt');
 const Course = require('../models/Course');
 const Question = require('../models/Question');
 const CourseMaterial = require('../models/CourseMaterial');
+const User = require('../models/User');
 const { ROLES } = require('../constants/roles');
 const auditService = require('./audit.service');
+const integrityService = require('./integrity.service');
+const reportService = require('./report.service');
+const emailService = require('./email.service');
 
 class ExamService {
   /**
@@ -68,6 +72,8 @@ class ExamService {
       duration,
       totalMarks,
       passingMarks,
+      folderIds = [],
+      questionSourceFolders = [],
       questionIds = [],
       questionsPerStudent = 0,
       difficultyDistribution = null,
@@ -111,14 +117,33 @@ class ExamService {
       throw error;
     }
 
-    // Verify all selected questions are APPROVED and belong to this course
+    const effectiveFolderIds = Array.isArray(folderIds) && folderIds.length > 0
+      ? folderIds
+      : (Array.isArray(questionSourceFolders) ? questionSourceFolders : []);
+
+    // Verify all selected questions are APPROVED and belong to this course & selected chapter folders
     let poolQuestions = [];
     if (!questionIds || questionIds.length === 0) {
-      poolQuestions = await Question.find({
+      const query = {
         courseId: course._id,
         institutionId: course.institutionId,
         status: 'APPROVED',
-      });
+      };
+
+      if (effectiveFolderIds.length > 0) {
+        const hasUncategorized = effectiveFolderIds.includes('uncategorized') || effectiveFolderIds.includes(null);
+        const realFolderIds = effectiveFolderIds.filter((id) => id && id !== 'uncategorized');
+
+        if (hasUncategorized && realFolderIds.length > 0) {
+          query.$or = [{ folderId: { $in: realFolderIds } }, { folderId: null }];
+        } else if (hasUncategorized) {
+          query.folderId = null;
+        } else if (realFolderIds.length > 0) {
+          query.folderId = { $in: realFolderIds };
+        }
+      }
+
+      poolQuestions = await Question.find(query);
       questionIds = poolQuestions.map((q) => q._id);
     } else {
       poolQuestions = await Question.find({
@@ -128,7 +153,7 @@ class ExamService {
     }
 
     if (poolQuestions.length === 0) {
-      const error = new Error('No approved questions available for this course in the Question Bank.');
+      const error = new Error('No approved questions available for the selected chapter(s) in the Question Bank.');
       error.statusCode = 400;
       error.code = 'NO_APPROVED_QUESTIONS';
       throw error;
@@ -151,6 +176,25 @@ class ExamService {
       throw error;
     }
 
+    // Strictly validate question folder membership if specific folders were chosen
+    const realFolders = effectiveFolderIds.filter((id) => id && id !== 'uncategorized').map((id) => id.toString());
+    const hasUncat = effectiveFolderIds.includes('uncategorized') || effectiveFolderIds.includes(null);
+
+    if (effectiveFolderIds.length > 0) {
+      const invalidFolderQuestion = poolQuestions.find((q) => {
+        const qFolderStr = q.folderId ? q.folderId.toString() : null;
+        if (!qFolderStr) return !hasUncat;
+        return !realFolders.includes(qFolderStr);
+      });
+
+      if (invalidFolderQuestion) {
+        const error = new Error('One or more selected questions do not belong to the selected chapter folders.');
+        error.statusCode = 400;
+        error.code = 'INVALID_FOLDER_QUESTION_SELECTION';
+        throw error;
+      }
+    }
+
     // Check difficulty distribution against available pool first if provided
     if (difficultyDistribution) {
       const reqEasy = parseInt(difficultyDistribution.easy || 0, 10);
@@ -162,19 +206,19 @@ class ExamService {
       const availHard = poolQuestions.filter((q) => q.difficulty === 'HARD').length;
 
       if (reqEasy > availEasy) {
-        const error = new Error(`Not enough approved Easy questions. Required: ${reqEasy}, Available: ${availEasy}.`);
+        const error = new Error(`Not enough approved Easy questions in selected chapter(s). Required: ${reqEasy}, Available: ${availEasy}. Please select another chapter or reduce required Easy questions.`);
         error.statusCode = 400;
         error.code = 'INSUFFICIENT_EASY_QUESTIONS';
         throw error;
       }
       if (reqMed > availMed) {
-        const error = new Error(`Not enough approved Medium questions. Required: ${reqMed}, Available: ${availMed}.`);
+        const error = new Error(`Not enough approved Medium questions in selected chapter(s). Required: ${reqMed}, Available: ${availMed}. Please select another chapter or reduce required Medium questions.`);
         error.statusCode = 400;
         error.code = 'INSUFFICIENT_MEDIUM_QUESTIONS';
         throw error;
       }
       if (reqHard > availHard) {
-        const error = new Error(`Not enough approved Hard questions. Required: ${reqHard}, Available: ${availHard}.`);
+        const error = new Error(`Not enough approved Hard questions in selected chapter(s). Required: ${reqHard}, Available: ${availHard}. Please select another chapter or reduce required Hard questions.`);
         error.statusCode = 400;
         error.code = 'INSUFFICIENT_HARD_QUESTIONS';
         throw error;
@@ -189,6 +233,8 @@ class ExamService {
       throw error;
     }
 
+    const cleanFolderIds = effectiveFolderIds.filter((id) => id && id !== 'uncategorized');
+
     const exam = await Exam.create({
       courseId: course._id,
       institutionId: course.institutionId,
@@ -197,6 +243,8 @@ class ExamService {
       duration: dur,
       totalMarks: totMarks,
       passingMarks: passMarks,
+      folderIds: cleanFolderIds,
+      questionSourceFolders: cleanFolderIds,
       questionIds,
       questionsPerStudent: perStudent,
       difficultyDistribution: difficultyDistribution || { easy: 0, medium: 0, hard: 0 },
@@ -245,30 +293,305 @@ class ExamService {
     const examIds = exams.map((e) => e._id);
     const attempts = await ExamAttempt.find({ examId: { $in: examIds } });
 
-    const examsWithMetrics = exams.map((e) => {
-      const eObj = e.toJSON();
-      eObj.computedStatus = this.deriveExamStatus(e);
+    const examsWithMetrics = await Promise.all(
+      exams.map(async (e) => {
+        const eObj = e.toJSON();
+        eObj.computedStatus = this.deriveExamStatus(e);
 
-      const eAttempts = attempts.filter((a) => a.examId.toString() === e._id.toString());
-      const submittedAttempts = eAttempts.filter((a) => a.status === 'SUBMITTED' || a.status === 'GRADED');
+        const eAttempts = attempts.filter((a) => a.examId.toString() === e._id.toString());
+        const submittedAttempts = eAttempts.filter((a) => a.status === 'SUBMITTED' || a.status === 'GRADED');
 
-      const totalStudents = e.courseId?.studentIds ? e.courseId.studentIds.length : 0;
-      const totalScoreSum = submittedAttempts.reduce((acc, curr) => acc + (curr.totalScore || 0), 0);
-      const avgScore = submittedAttempts.length > 0 ? (totalScoreSum / submittedAttempts.length).toFixed(1) : 0;
-      const completionPercentage = totalStudents > 0 ? Math.round((submittedAttempts.length / totalStudents) * 100) : 0;
+        const lockInfo = await this.checkExamEditLock(e);
+        eObj.isLocked = lockInfo.isLocked;
+        eObj.lockReason = lockInfo.reason;
+        eObj.attemptsStarted = lockInfo.attemptsStarted;
+        eObj.canEdit = lockInfo.canEdit;
+        eObj.canCancel = lockInfo.canCancel;
 
-      eObj.metrics = {
-        totalAttempts: eAttempts.length,
-        submittedAttempts: submittedAttempts.length,
-        totalEnrolledStudents: totalStudents,
-        averageScore: parseFloat(avgScore),
-        completionPercentage,
-      };
+        const totalStudents = e.courseId?.studentIds ? e.courseId.studentIds.length : 0;
+        const totalScoreSum = submittedAttempts.reduce((acc, curr) => acc + (curr.totalScore || 0), 0);
+        const avgScore = submittedAttempts.length > 0 ? (totalScoreSum / submittedAttempts.length).toFixed(1) : 0;
+        const completionPercentage = totalStudents > 0 ? Math.round((submittedAttempts.length / totalStudents) * 100) : 0;
 
-      return eObj;
-    });
+        eObj.metrics = {
+          totalAttempts: eAttempts.length,
+          submittedAttempts: submittedAttempts.length,
+          totalEnrolledStudents: totalStudents,
+          averageScore: parseFloat(avgScore),
+          completionPercentage,
+        };
+
+        return eObj;
+      })
+    );
 
     return examsWithMetrics;
+  }
+
+  /**
+   * Get all exam attempts for a specific exam for instructor review
+   */
+  async getInstructorExamAttempts(examId, user) {
+    if (user.role !== ROLES.INSTRUCTOR) {
+      const error = new Error('Access denied. Only instructors can view exam attempts.');
+      error.statusCode = 403;
+      throw error;
+    }
+
+    const exam = await Exam.findById(examId);
+    if (!exam) {
+      const error = new Error('Exam not found.');
+      error.statusCode = 404;
+      throw error;
+    }
+
+    await this.checkInstructorCourseAccess(exam.courseId, user);
+
+    const course = await Course.findById(exam.courseId).populate('studentIds', 'name email rollNumber status');
+    const attempts = await ExamAttempt.find({ examId })
+      .populate('studentId', 'name email rollNumber status')
+      .lean();
+
+    const attemptMap = new Map();
+    attempts.forEach((att) => {
+      if (att.studentId && att.studentId._id) {
+        attemptMap.set(att.studentId._id.toString(), att);
+      }
+    });
+
+    const enrolledStudents = course ? course.studentIds || [] : [];
+    const result = [];
+
+    enrolledStudents.forEach((student) => {
+      const att = attemptMap.get(student._id.toString());
+      result.push({
+        student: {
+          _id: student._id,
+          name: student.name,
+          email: student.email,
+          rollNumber: student.rollNumber,
+          status: student.status,
+        },
+        attempt: att || null,
+      });
+      attemptMap.delete(student._id.toString());
+    });
+
+    attemptMap.forEach((att) => {
+      result.push({
+        student: att.studentId
+          ? {
+              _id: att.studentId._id,
+              name: att.studentId.name,
+              email: att.studentId.email,
+              rollNumber: att.studentId.rollNumber,
+              status: att.studentId.status,
+            }
+          : { _id: null, name: 'Unknown Student', email: '', rollNumber: '', status: '' },
+        attempt: att,
+      });
+    });
+
+    return result;
+  }
+
+  /**
+   * Get all students enrolled in courses taught by the instructor
+   */
+  async getInstructorStudents(user) {
+    if (user.role !== ROLES.INSTRUCTOR) {
+      const error = new Error('Access denied. Only instructors can view students.');
+      error.statusCode = 403;
+      throw error;
+    }
+
+    const assignedCourses = await Course.find({ instructorIds: user._id })
+      .populate('studentIds', 'name email rollNumber status department institutionId')
+      .select('_id name code department studentIds');
+
+    const courseIds = assignedCourses.map((c) => c._id);
+
+    const studentCourseMap = new Map();
+    const studentInfoMap = new Map();
+
+    assignedCourses.forEach((course) => {
+      (course.studentIds || []).forEach((student) => {
+        if (!student || !student._id) return;
+        const sId = student._id.toString();
+        if (!studentInfoMap.has(sId)) {
+          studentInfoMap.set(sId, student);
+        }
+        if (!studentCourseMap.has(sId)) {
+          studentCourseMap.set(sId, []);
+        }
+        studentCourseMap.get(sId).push({
+          _id: course._id,
+          code: course.code,
+          name: course.name,
+        });
+      });
+    });
+
+    const uniqueStudentIds = Array.from(studentInfoMap.keys());
+
+    const attempts = await ExamAttempt.find({
+      courseId: { $in: courseIds },
+      studentId: { $in: uniqueStudentIds },
+    }).select('studentId status totalScore maxScore percentage passed');
+
+    const studentAttemptsMap = new Map();
+    attempts.forEach((att) => {
+      const sId = att.studentId ? att.studentId.toString() : null;
+      if (sId) {
+        if (!studentAttemptsMap.has(sId)) {
+          studentAttemptsMap.set(sId, []);
+        }
+        studentAttemptsMap.get(sId).push(att);
+      }
+    });
+
+    const studentList = uniqueStudentIds.map((sId) => {
+      const student = studentInfoMap.get(sId);
+      const enrolledCourses = studentCourseMap.get(sId) || [];
+      const sAttempts = studentAttemptsMap.get(sId) || [];
+
+      const attemptsCount = sAttempts.length;
+      const publishedAttempts = sAttempts.filter((a) => a.status === 'PUBLISHED');
+      const scoreSum = publishedAttempts.reduce((acc, curr) => acc + (curr.percentage || 0), 0);
+      const averagePublishedScore = publishedAttempts.length > 0 ? Math.round(scoreSum / publishedAttempts.length) : 0;
+
+      return {
+        _id: student._id,
+        name: student.name,
+        email: student.email,
+        rollNumber: student.rollNumber || '',
+        status: student.status || 'ACTIVE',
+        enrolledCourses,
+        attemptsCount,
+        averagePublishedScore,
+      };
+    });
+
+    return studentList;
+  }
+
+  /**
+   * Get performance metrics and attempt history for a specific student
+   */
+  async getInstructorStudentPerformance(studentId, user) {
+    if (user.role !== ROLES.INSTRUCTOR) {
+      const error = new Error('Access denied. Only instructors can view student performance.');
+      error.statusCode = 403;
+      throw error;
+    }
+
+    const assignedCourses = await Course.find({ instructorIds: user._id }).select('_id name code');
+    const courseIds = assignedCourses.map((c) => c._id);
+
+    const attempts = await ExamAttempt.find({
+      studentId,
+      courseId: { $in: courseIds },
+    })
+      .populate('examId', 'title code totalPoints passPercentage')
+      .populate('courseId', 'name code')
+      .sort({ createdAt: -1 })
+      .lean();
+
+    const attemptsCount = attempts.length;
+    const completedCount = attempts.filter((a) => ['SUBMITTED', 'GRADED', 'PUBLISHED'].includes(a.status)).length;
+    const publishedAttempts = attempts.filter((a) => a.status === 'PUBLISHED');
+
+    const scoreSum = publishedAttempts.reduce((acc, curr) => acc + (curr.percentage || 0), 0);
+    const averageScore = publishedAttempts.length > 0 ? Math.round(scoreSum / publishedAttempts.length) : 0;
+
+    const passedCount = publishedAttempts.filter((a) => a.passed).length;
+    const passRate = publishedAttempts.length > 0 ? Math.round((passedCount / publishedAttempts.length) * 100) : 0;
+
+    return {
+      summary: {
+        attemptsCount,
+        completedCount,
+        averageScore,
+        passRate,
+      },
+      attempts: attempts.map((att) => ({
+        _id: att._id,
+        examId: att.examId ? { _id: att.examId._id, title: att.examId.title } : null,
+        courseId: att.courseId ? { _id: att.courseId._id, name: att.courseId.name, code: att.courseId.code } : null,
+        status: att.status,
+        startedAt: att.startedAt,
+        submittedAt: att.submittedAt,
+        score: att.totalScore || 0,
+        percentage: att.percentage || 0,
+        passed: att.passed || false,
+      })),
+      topics: {
+        strongTopics: [],
+        weakTopics: [],
+      },
+    };
+  }
+
+  /**
+   * Helper to check if exam configuration is locked for editing
+   */
+  async checkExamEditLock(exam) {
+    const now = new Date();
+    const startedAttemptsCount = await ExamAttempt.countDocuments({
+      examId: exam._id,
+      startedAt: { $ne: null },
+    });
+
+    const isScheduledOrPublished = exam.status === 'SCHEDULED' || exam.status === 'PUBLISHED';
+
+    if (exam.status === 'DRAFT') {
+      return {
+        isLocked: false,
+        reason: null,
+        attemptsStarted: startedAttemptsCount,
+        canEdit: true,
+        canCancel: true,
+      };
+    }
+
+    if (isScheduledOrPublished) {
+      const hasStartTimePassed = exam.startTime && now >= new Date(exam.startTime);
+      if (hasStartTimePassed) {
+        return {
+          isLocked: true,
+          reason: 'Exam configuration cannot be changed because the scheduled start time has passed.',
+          attemptsStarted: startedAttemptsCount,
+          canEdit: false,
+          canCancel: startedAttemptsCount === 0,
+        };
+      }
+
+      if (startedAttemptsCount > 0) {
+        return {
+          isLocked: true,
+          reason: 'Exam configuration cannot be changed because a student has already started an attempt.',
+          attemptsStarted: startedAttemptsCount,
+          canEdit: false,
+          canCancel: false,
+        };
+      }
+
+      return {
+        isLocked: false,
+        reason: null,
+        attemptsStarted: 0,
+        canEdit: true,
+        canCancel: true,
+      };
+    }
+
+    return {
+      isLocked: true,
+      reason: `Exam configuration cannot be changed because the exam status is ${exam.status}.`,
+      attemptsStarted: startedAttemptsCount,
+      canEdit: false,
+      canCancel: false,
+    };
   }
 
   /**
@@ -310,8 +633,14 @@ class ExamService {
       }
     }
 
+    const lockInfo = await this.checkExamEditLock(exam);
     const eObj = exam.toJSON();
     eObj.computedStatus = this.deriveExamStatus(exam);
+    eObj.isLocked = lockInfo.isLocked;
+    eObj.lockReason = lockInfo.reason;
+    eObj.attemptsStarted = lockInfo.attemptsStarted;
+    eObj.canEdit = lockInfo.canEdit;
+    eObj.canCancel = lockInfo.canCancel;
     return eObj;
   }
 
@@ -329,14 +658,80 @@ class ExamService {
 
     await this.checkInstructorCourseAccess(exam.courseId, user);
 
-    // Prevent modifying questions if exam has submitted attempts
-    const submittedAttemptsCount = await ExamAttempt.countDocuments({ examId: exam._id, status: { $in: ['SUBMITTED', 'GRADED'] } });
-    if (submittedAttemptsCount > 0 && updateData.questionIds) {
-      const error = new Error('Cannot modify questions of an exam with existing student submissions.');
-      error.statusCode = 400;
-      error.code = 'EXAM_HAS_SUBMISSIONS';
+    const lockInfo = await this.checkExamEditLock(exam);
+
+    // Cancel action check
+    if (updateData.status === 'CANCELLED' && Object.keys(updateData).filter(k => k !== 'status').length === 0) {
+      if (lockInfo.attemptsStarted > 0) {
+        const error = new Error('Exam configuration cannot be changed because a student has already started an attempt.');
+        error.statusCode = 409;
+        error.code = 'EXAM_LOCKED';
+        throw error;
+      }
+      exam.status = 'CANCELLED';
+      await exam.save();
+
+      await auditService.logAudit({
+        user,
+        action: 'EXAM_CANCELLED',
+        resourceType: 'EXAM',
+        resourceId: exam._id,
+        institutionId: exam.institutionId,
+        metadata: { examTitle: exam.title },
+      });
+
+      return exam.populate('questionIds');
+    }
+
+    // Configuration modification lock check
+    if (lockInfo.isLocked) {
+      const error = new Error(lockInfo.reason || 'Exam configuration cannot be changed because a student has already started an attempt.');
+      error.statusCode = 409;
+      error.code = 'EXAM_LOCKED';
       throw error;
     }
+
+    // Track changed fields for Audit Log (Section 11)
+    const oldValues = {};
+    const newValues = {};
+    const changedFields = [];
+
+    const fieldsToTrack = [
+      'title',
+      'description',
+      'duration',
+      'totalMarks',
+      'passingMarks',
+      'questionsPerStudent',
+      'difficultyDistribution',
+      'startTime',
+      'endTime',
+      'questionIds',
+      'folderIds',
+      'questionSourceFolders',
+      'status',
+    ];
+
+    fieldsToTrack.forEach((field) => {
+      if (updateData[field] !== undefined) {
+        let oldVal = exam[field];
+        let newVal = updateData[field];
+
+        if (field === 'startTime' || field === 'endTime') {
+          oldVal = oldVal ? new Date(oldVal).toISOString() : null;
+          newVal = newVal ? new Date(newVal).toISOString() : null;
+        } else if (Array.isArray(oldVal)) {
+          oldVal = oldVal.map((id) => (id ? id.toString() : ''));
+          newVal = Array.isArray(newVal) ? newVal.map((id) => (id ? id.toString() : '')) : newVal;
+        }
+
+        if (JSON.stringify(oldVal) !== JSON.stringify(newVal)) {
+          changedFields.push(field);
+          oldValues[field] = oldVal;
+          newValues[field] = newVal;
+        }
+      }
+    });
 
     if (updateData.title) exam.title = updateData.title.trim();
     if (updateData.description !== undefined) exam.description = updateData.description.trim();
@@ -363,8 +758,14 @@ class ExamService {
     }
 
     if (Array.isArray(updateData.questionIds)) exam.questionIds = updateData.questionIds;
+    if (Array.isArray(updateData.folderIds)) {
+      exam.folderIds = updateData.folderIds;
+      exam.questionSourceFolders = updateData.folderIds;
+    }
+    if (Array.isArray(updateData.questionSourceFolders)) exam.questionSourceFolders = updateData.questionSourceFolders;
     if (updateData.questionsPerStudent !== undefined) exam.questionsPerStudent = parseInt(updateData.questionsPerStudent, 10) || 0;
     if (updateData.difficultyDistribution) exam.difficultyDistribution = updateData.difficultyDistribution;
+    if (updateData.status) exam.status = updateData.status;
 
     const newStart = updateData.startTime !== undefined ? (updateData.startTime ? new Date(updateData.startTime) : null) : exam.startTime;
     const newEnd = updateData.endTime !== undefined ? (updateData.endTime ? new Date(updateData.endTime) : null) : exam.endTime;
@@ -380,6 +781,21 @@ class ExamService {
     exam.endTime = newEnd;
 
     await exam.save();
+
+    await auditService.logAudit({
+      user,
+      action: updateData.status === 'CANCELLED' ? 'EXAM_CANCELLED' : 'EXAM_UPDATED',
+      resourceType: 'EXAM',
+      resourceId: exam._id,
+      institutionId: exam.institutionId,
+      metadata: {
+        examTitle: exam.title,
+        changedFields,
+        oldValues,
+        newValues,
+      },
+    });
+
     return exam.populate('questionIds');
   }
 
@@ -486,16 +902,145 @@ class ExamService {
 
     await exam.save();
 
+    // Dispatch Exam Notification Emails to Enrolled Students
+    const notificationSummary = await this.dispatchExamPublishedNotifications({ exam });
+
     await auditService.logAudit({
       user,
       action: 'EXAM_PUBLISHED',
       resourceType: 'EXAM',
       resourceId: exam._id,
       institutionId: exam.institutionId,
-      metadata: { examTitle: exam.title },
+      metadata: { examTitle: exam.title, notificationSummary },
     });
 
-    return exam.populate('questionIds');
+    const populatedExam = await exam.populate('questionIds');
+    const examObj = populatedExam.toJSON();
+    examObj.notificationSummary = notificationSummary;
+    return examObj;
+  }
+
+  /**
+   * Helper to send exam publication notification emails to all enrolled students
+   */
+  async dispatchExamPublishedNotifications({ exam, forceResend = false }) {
+    try {
+      const course = await Course.findById(exam.courseId).populate('studentIds');
+      if (!course || !Array.isArray(course.studentIds) || course.studentIds.length === 0) {
+        return {
+          totalEnrolled: 0,
+          sentCount: 0,
+          skippedCount: 0,
+          failedCount: 0,
+          recipients: [],
+        };
+      }
+
+      const enrolledStudents = course.studentIds.filter((s) => s && s.role === ROLES.STUDENT && s.status === 'ACTIVE');
+      const Notification = require('../models/Notification');
+
+      const examDetails = {
+        title: exam.title,
+        courseName: course.name,
+        courseCode: course.code,
+        examDate: exam.startTime ? new Date(exam.startTime).toLocaleDateString() : 'Flexible / Active',
+        startTime: exam.startTime ? new Date(exam.startTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : 'Immediate',
+        endTime: exam.endTime ? new Date(exam.endTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : 'N/A',
+        durationMinutes: exam.duration,
+        totalQuestions: exam.questionsPerStudent || (exam.questionIds ? exam.questionIds.length : 0),
+        totalMarks: exam.totalMarks,
+        passingMarks: exam.passingMarks,
+      };
+
+      const results = {
+        totalEnrolled: enrolledStudents.length,
+        sentCount: 0,
+        skippedCount: 0,
+        failedCount: 0,
+        recipients: [],
+      };
+
+      for (const student of enrolledStudents) {
+        if (!student.email) continue;
+
+        // Idempotency check: avoid duplicate emails unless forceResend is requested
+        if (!forceResend) {
+          const existingNotification = await Notification.findOne({
+            studentId: student._id,
+            relatedId: exam._id,
+            type: 'EXAM_PUBLISHED',
+            status: 'SENT',
+          });
+          if (existingNotification) {
+            results.skippedCount++;
+            results.recipients.push({ email: student.email, status: 'SKIPPED_DUPLICATE' });
+            continue;
+          }
+        }
+
+        const emailRes = await emailService.sendExamPublishedEmail({
+          to: student.email,
+          studentName: student.name,
+          examDetails,
+        });
+
+        const status = emailRes.success ? 'SENT' : 'FAILED';
+        const failureReason = emailRes.error || null;
+
+        await Notification.create({
+          studentId: student._id,
+          recipientEmail: student.email,
+          type: 'EXAM_PUBLISHED',
+          title: `Exam Announcement: ${exam.title}`,
+          message: `Notification email for exam "${exam.title}" sent to ${student.email}`,
+          read: false,
+          relatedId: exam._id,
+          status,
+          failureReason,
+        });
+
+        if (emailRes.success) {
+          results.sentCount++;
+          results.recipients.push({ email: student.email, status: 'SENT' });
+        } else {
+          results.failedCount++;
+          results.recipients.push({ email: student.email, status: 'FAILED', reason: failureReason });
+        }
+      }
+
+      return results;
+    } catch (err) {
+      console.error('[Exam Notification Error] Failed dispatching notifications:', err.message);
+      return { error: err.message };
+    }
+  }
+
+  /**
+   * Resend exam publication notification to enrolled students
+   */
+  async resendExamNotification(examId, user) {
+    const exam = await Exam.findById(examId);
+    if (!exam) {
+      const error = new Error('Exam not found.');
+      error.statusCode = 404;
+      error.code = 'EXAM_NOT_FOUND';
+      throw error;
+    }
+
+    if (user.role === ROLES.INSTRUCTOR) {
+      await this.checkInstructorCourseAccess(exam.courseId, user);
+    } else if (user.role !== ROLES.SUPER_ADMIN && user.role !== ROLES.INSTITUTION_ADMIN) {
+      const error = new Error('Access denied. Only instructors and administrators can resend exam notifications.');
+      error.statusCode = 403;
+      throw error;
+    }
+
+    const summary = await this.dispatchExamPublishedNotifications({ exam, forceResend: true });
+    return {
+      success: true,
+      message: `Exam notification dispatch complete. Sent: ${summary.sentCount}, Failed: ${summary.failedCount}, Total Enrolled: ${summary.totalEnrolled}.`,
+      summary,
+    };
   }
 
   /**
@@ -549,9 +1094,9 @@ class ExamService {
         ? {
             id: myAttempt._id,
             status: myAttempt.status,
-            totalScore: myAttempt.totalScore,
-            percentage: myAttempt.percentage,
-            passed: myAttempt.passed,
+            totalScore: myAttempt.status === 'PUBLISHED' ? myAttempt.totalScore : undefined,
+            percentage: myAttempt.status === 'PUBLISHED' ? myAttempt.percentage : undefined,
+            passed: myAttempt.status === 'PUBLISHED' ? myAttempt.passed : undefined,
             submittedAt: myAttempt.submittedAt,
           }
         : null;
@@ -832,7 +1377,43 @@ class ExamService {
       recommendations,
     };
 
+    try {
+      const summaryResult = await integrityService.generateAIIntegritySummary(
+        exam.title,
+        attempt.integritySignals || [],
+        attempt.questionTimings || []
+      );
+      attempt.integritySummary = {
+        totalSignals: summaryResult.totalSignals,
+        riskLevel: summaryResult.riskLevel,
+        signalCounts: summaryResult.signalCounts,
+        aiSummary: summaryResult.aiSummary,
+        aiRecommendation: summaryResult.aiRecommendation,
+        reviewStatus: 'PENDING',
+      };
+    } catch (e) {
+      console.error('Integrity summary generation error:', e);
+    }
+
     await attempt.save();
+
+    try {
+      const Notification = require('../models/Notification');
+      await Notification.create({
+        studentId: user._id,
+        type: 'EXAM_SUBMITTED',
+        title: 'Exam Submitted Successfully',
+        message: `Your attempt for "${exam.title}" has been successfully submitted and is under review.`,
+        relatedId: exam._id
+      });
+    } catch (e) { console.error('Notification creation failed', e); }
+
+    const result = attempt.toJSON();
+    delete result.totalScore;
+    delete result.percentage;
+    delete result.passed;
+    delete result.answers;
+    delete result.aiAnalysis;
 
     await auditService.logAudit({
       user,
@@ -843,7 +1424,7 @@ class ExamService {
       metadata: { examTitle: exam.title, score: finalScore, percentage },
     });
 
-    return attempt;
+    return result;
   }
 
   /**
@@ -895,12 +1476,13 @@ class ExamService {
     const assignedCourses = await Course.find({ instructorIds: user._id }).select('_id name code department studentIds');
     const courseIds = assignedCourses.map((c) => c._id);
 
-    const [materialsCount, questionsCount, approvedQuestionsCount, exams, attempts] = await Promise.all([
+    const [materialsCount, questionsCount, approvedQuestionsCount, exams, attempts, publishedAttempts] = await Promise.all([
       CourseMaterial.countDocuments({ courseId: { $in: courseIds } }),
       Question.countDocuments({ courseId: { $in: courseIds } }),
       Question.countDocuments({ courseId: { $in: courseIds }, status: 'APPROVED' }),
       Exam.find({ courseId: { $in: courseIds } }).select('_id title status'),
       ExamAttempt.find({ courseId: { $in: courseIds }, status: { $in: ['SUBMITTED', 'GRADED'] } }),
+      ExamAttempt.countDocuments({ courseId: { $in: courseIds }, status: 'PUBLISHED' }),
     ]);
 
     const totalStudents = assignedCourses.reduce((acc, curr) => acc + (curr.studentIds ? curr.studentIds.length : 0), 0);
@@ -917,6 +1499,8 @@ class ExamService {
         totalStudentsCount: totalStudents,
         totalSubmittedAttempts: attempts.length,
         averageClassScore: parseFloat(averageScore),
+        pendingReviewsCount: attempts.length,
+        publishedResultsCount: publishedAttempts,
       },
       assignedCourses: assignedCourses.map((c) => ({
         id: c._id,
@@ -926,6 +1510,638 @@ class ExamService {
         studentCount: c.studentIds ? c.studentIds.length : 0,
       })),
     };
+  }
+
+  /**
+   * Get detailed analytics for Instructor Analytics Workspace (calculates score distribution, difficulty analysis, question analysis, unit performance, exam breakdown)
+   */
+  async getInstructorAnalyticsDetails(user, filters = {}) {
+    if (user.role !== ROLES.INSTRUCTOR) {
+      const error = new Error('Access denied.');
+      error.statusCode = 403;
+      throw error;
+    }
+
+    const assignedCourses = await Course.find({ instructorIds: user._id })
+      .populate('studentIds', 'name email')
+      .select('_id name code department studentIds');
+    const assignedCourseIds = assignedCourses.map((c) => c._id.toString());
+
+    // Fetch all accessible exams for filter dropdown options
+    const allInstructorExams = await Exam.find({ courseId: { $in: assignedCourseIds } })
+      .select('_id title courseId')
+      .lean();
+
+    const formattedCourses = assignedCourses.map((c) => ({
+      _id: c._id.toString(),
+      code: c.code,
+      name: c.name,
+    }));
+
+    const formattedExams = allInstructorExams.map((e) => ({
+      _id: e._id.toString(),
+      title: e.title,
+      courseId: e.courseId ? e.courseId.toString() : null,
+    }));
+
+    // Course filter
+    let courseIds = assignedCourseIds;
+    if (filters.courseId) {
+      if (!assignedCourseIds.includes(filters.courseId)) {
+        const error = new Error('Access denied. Course is not assigned to you.');
+        error.statusCode = 403;
+        throw error;
+      }
+      courseIds = [filters.courseId];
+    }
+
+    // Exam filter
+    const examQuery = { courseId: { $in: courseIds } };
+    if (filters.examId) {
+      examQuery._id = filters.examId;
+    }
+
+    const exams = await Exam.find(examQuery)
+      .populate('questionIds')
+      .populate('courseId', 'code name studentIds');
+
+    const examIds = exams.map((e) => e._id);
+
+    // Attempt filter
+    const attemptQuery = { examId: { $in: examIds }, status: { $in: ['SUBMITTED', 'GRADED', 'PUBLISHED'] } };
+    if (filters.startDate || filters.endDate) {
+      attemptQuery.createdAt = {};
+      if (filters.startDate) attemptQuery.createdAt.$gte = new Date(filters.startDate);
+      if (filters.endDate) attemptQuery.createdAt.$lte = new Date(filters.endDate);
+    }
+
+    const attempts = await ExamAttempt.find(attemptQuery).populate('answers.questionId');
+
+    // Total unique students across filtered courses
+    const targetCourses = assignedCourses.filter((c) => courseIds.includes(c._id.toString()));
+    const totalStudents = [...new Set(targetCourses.flatMap((c) => (c.studentIds || []).map((s) => s._id.toString())))].length;
+
+    if (attempts.length === 0) {
+      return {
+        hasData: false,
+        summary: {
+          totalStudents,
+          submittedCount: 0,
+          averageScore: 0,
+          highestScore: 0,
+          lowestScore: 0,
+          passRate: 0,
+        },
+        courses: formattedCourses,
+        exams: formattedExams,
+        scoreDistribution: [],
+        questionAnalysis: [],
+        difficultyAnalysis: [],
+        topicPerformance: [],
+        examPerformance: [],
+      };
+    }
+
+    // Summary calculations
+    const percentages = attempts.map((a) => a.percentage || 0);
+    const submittedCount = attempts.length;
+    const scoreSum = percentages.reduce((a, b) => a + b, 0);
+    const averageScore = parseFloat((scoreSum / submittedCount).toFixed(1));
+    const highestScore = Math.max(...percentages);
+    const lowestScore = Math.min(...percentages);
+    const passedCount = attempts.filter((a) => a.passed).length;
+    const passRate = Math.round((passedCount / submittedCount) * 100);
+
+    // 1. Score Distribution (0-20, 20-40, 40-60, 60-80, 80-100)
+    const ranges = [
+      { range: '0–20', min: 0, max: 20, count: 0 },
+      { range: '20–40', min: 20, max: 40, count: 0 },
+      { range: '40–60', min: 40, max: 60, count: 0 },
+      { range: '60–80', min: 60, max: 80, count: 0 },
+      { range: '80–100', min: 80, max: 100, count: 0 },
+    ];
+
+    percentages.forEach((p) => {
+      if (p <= 20) ranges[0].count++;
+      else if (p <= 40) ranges[1].count++;
+      else if (p <= 60) ranges[2].count++;
+      else if (p <= 80) ranges[3].count++;
+      else ranges[4].count++;
+    });
+
+    const maxCount = Math.max(...ranges.map((r) => r.count), 1);
+    const scoreDistribution = ranges.map((r) => ({
+      ...r,
+      percentageHeight: Math.round((r.count / maxCount) * 100),
+    }));
+
+    // 2. Question Analysis
+    const questionStatsMap = {};
+    attempts.forEach((att) => {
+      (att.answers || []).forEach((ans) => {
+        const qId = ans.questionId?._id?.toString() || ans.questionId?.toString();
+        if (!qId) return;
+
+        if (!questionStatsMap[qId]) {
+          const questionObj = ans.questionId && ans.questionId.questionText ? ans.questionId : null;
+          questionStatsMap[qId] = {
+            id: qId,
+            questionText: questionObj ? questionObj.questionText : 'Question',
+            type: questionObj ? questionObj.type : 'MCQ',
+            difficulty: questionObj ? questionObj.difficulty : 'MEDIUM',
+            topic: questionObj ? questionObj.topic : 'General',
+            totalResponses: 0,
+            correctResponses: 0,
+          };
+        }
+
+        questionStatsMap[qId].totalResponses++;
+        if (ans.isCorrect) questionStatsMap[qId].correctResponses++;
+      });
+    });
+
+    const questionAnalysis = Object.values(questionStatsMap).map((q) => ({
+      ...q,
+      correctPct: q.totalResponses > 0 ? Math.round((q.correctResponses / q.totalResponses) * 100) : 0,
+    }));
+
+    // 3. Difficulty Analysis (EASY, MEDIUM, HARD)
+    const diffMap = { EASY: { count: 0, correct: 0 }, MEDIUM: { count: 0, correct: 0 }, HARD: { count: 0, correct: 0 } };
+    questionAnalysis.forEach((q) => {
+      const d = ['EASY', 'MEDIUM', 'HARD'].includes(q.difficulty) ? q.difficulty : 'MEDIUM';
+      diffMap[d].count += q.totalResponses;
+      diffMap[d].correct += q.correctResponses;
+    });
+
+    const difficultyAnalysis = Object.keys(diffMap).map((d) => ({
+      difficulty: d,
+      totalResponses: diffMap[d].count,
+      correctPct: diffMap[d].count > 0 ? Math.round((diffMap[d].correct / diffMap[d].count) * 100) : 0,
+    }));
+
+    // 4. Topic Performance
+    const topicMap = {};
+    questionAnalysis.forEach((q) => {
+      const t = q.topic || 'General';
+      if (!topicMap[t]) topicMap[t] = { topic: t, totalResponses: 0, correctResponses: 0, questionCount: 0 };
+      topicMap[t].questionCount++;
+      topicMap[t].totalResponses += q.totalResponses;
+      topicMap[t].correctResponses += q.correctResponses;
+    });
+
+    const topicPerformance = Object.values(topicMap).map((t) => ({
+      ...t,
+      correctPct: t.totalResponses > 0 ? Math.round((t.correctResponses / t.totalResponses) * 100) : 0,
+    }));
+
+    // 5. Exam Breakdown
+    const examPerformance = exams.map((e) => {
+      const eAttempts = attempts.filter((a) => a.examId.toString() === e._id.toString());
+      const eScores = eAttempts.map((a) => a.percentage || 0);
+      const eAvg = eScores.length > 0 ? parseFloat((eScores.reduce((a, b) => a + b, 0) / eScores.length).toFixed(1)) : 0;
+      const ePassed = eAttempts.filter((a) => a.passed).length;
+      const ePassRate = eScores.length > 0 ? Math.round((ePassed / eScores.length) * 100) : 0;
+      const eEnrolled = e.courseId?.studentIds?.length || 0;
+
+      return {
+        id: e._id,
+        title: e.title,
+        courseCode: e.courseId?.code || 'N/A',
+        enrolledStudents: eEnrolled,
+        attemptsCount: eAttempts.length,
+        averageScore: eAvg,
+        passRate: ePassRate,
+      };
+    });
+
+    return {
+      hasData: true,
+      summary: {
+        totalStudents,
+        submittedCount,
+        averageScore,
+        highestScore,
+        lowestScore,
+        passRate,
+      },
+      courses: formattedCourses,
+      exams: formattedExams,
+      scoreDistribution,
+      questionAnalysis,
+      difficultyAnalysis,
+      topicPerformance,
+      examPerformance,
+    };
+  }
+
+  /**
+   * Generate Instructor Reports (Student Performance, Exam Performance, Question Analysis, Course Performance)
+   */
+  async getInstructorReports(user, filters = {}) {
+    return await reportService.generateReport(user, filters);
+  }
+
+  /**
+   * Get Exam Attempt by ID
+   */
+  async getExamAttemptById(attemptId, user) {
+    const attempt = await ExamAttempt.findById(attemptId)
+      .populate('examId', 'title duration totalMarks passingMarks')
+      .populate('questionIds');
+    if (!attempt) {
+      const error = new Error('Attempt not found.');
+      error.statusCode = 404;
+      throw error;
+    }
+
+    if (user.role === ROLES.STUDENT) {
+      if (attempt.studentId.toString() !== user._id.toString()) {
+        const error = new Error('Access denied.');
+        error.statusCode = 403;
+        throw error;
+      }
+      const attemptObj = attempt.toJSON();
+      if (attemptObj.status !== 'PUBLISHED') {
+        delete attemptObj.totalScore;
+        delete attemptObj.percentage;
+        delete attemptObj.passed;
+        delete attemptObj.aiAnalysis;
+        // Don't expose correct/incorrect info on answers
+        attemptObj.answers = attemptObj.answers?.map(a => {
+          const { isCorrect, marksObtained, ...rest } = a;
+          return rest;
+        });
+      }
+      return attemptObj;
+    } else if (user.role === ROLES.INSTRUCTOR) {
+      const course = await Course.findById(attempt.courseId);
+      const isAssigned = course && course.instructorIds.some(id => id.toString() === user._id.toString());
+      if (!isAssigned) {
+        const error = new Error('Access denied. You are not assigned to this course.');
+        error.statusCode = 403;
+        throw error;
+      }
+      return attempt;
+    } else {
+      const error = new Error('Access denied.');
+      error.statusCode = 403;
+      throw error;
+    }
+  }
+
+  /**
+   * Publish Result (Instructor)
+   */
+  async publishResult(attemptId, user) {
+    const attempt = await ExamAttempt.findById(attemptId);
+    if (!attempt) {
+      const error = new Error('Attempt not found.');
+      error.statusCode = 404;
+      throw error;
+    }
+    const course = await Course.findById(attempt.courseId);
+    const isAssigned = course && course.instructorIds.some(id => id.toString() === user._id.toString());
+    if (!isAssigned) {
+      const error = new Error('Access denied.');
+      error.statusCode = 403;
+      throw error;
+    }
+    
+    if (attempt.status !== 'GRADED' && attempt.status !== 'SUBMITTED') {
+      const error = new Error('Attempt must be graded before publishing.');
+      error.statusCode = 400;
+      throw error;
+    }
+
+    attempt.status = 'PUBLISHED';
+    attempt.resultPublishedAt = new Date();
+    attempt.resultPublishedBy = user._id;
+    await attempt.save();
+
+    try {
+      const Notification = require('../models/Notification');
+      await Notification.create({
+        studentId: attempt.studentId,
+        type: 'RESULT_PUBLISHED',
+        title: 'Exam Result Published',
+        message: `Your instructor has published the result for your exam attempt.`,
+        relatedId: attempt.examId
+      });
+    } catch (e) { console.error('Notification creation failed', e); }
+
+    await auditService.logAudit({
+      user,
+      action: 'RESULT_PUBLISHED',
+      resourceType: 'EXAM_ATTEMPT',
+      resourceId: attempt._id,
+      institutionId: attempt.institutionId,
+      metadata: { studentId: attempt.studentId, examId: attempt.examId },
+    });
+
+    return attempt;
+  }
+
+  /**
+   * Record Integrity Signal with anti-spam and rate limiting
+   */
+  async recordIntegritySignal(attemptId, signalType, metadata = {}, user) {
+    const attempt = await ExamAttempt.findById(attemptId);
+    if (!attempt) return null;
+    
+    if (attempt.studentId.toString() !== user._id.toString()) return null;
+    if (attempt.status !== 'IN_PROGRESS') return null;
+
+    // Rate limiting & anti-spam: max 100 signals per attempt
+    if (attempt.integritySignals && attempt.integritySignals.length >= 100) {
+      return attempt;
+    }
+
+    // Deduplication check: disallow exact same signalType within 3 seconds
+    const now = new Date();
+    if (attempt.integritySignals && attempt.integritySignals.length > 0) {
+      const lastSig = attempt.integritySignals[attempt.integritySignals.length - 1];
+      if (lastSig.signalType === signalType && (now - new Date(lastSig.timestamp)) < 3000) {
+        return attempt;
+      }
+    }
+
+    let severity = 'MEDIUM';
+    if (['MULTIPLE_PERSON_DETECTED', 'COPY_ATTEMPT', 'PASTE_ATTEMPT'].includes(signalType)) {
+      severity = 'HIGH';
+    } else if (['UNUSUAL_ANSWER_TIMING', 'WINDOW_BLUR', 'CONTEXT_MENU', 'CONNECTION_LOST'].includes(signalType)) {
+      severity = 'LOW';
+    }
+
+    attempt.integritySignals.push({
+      signalType,
+      timestamp: now,
+      severity,
+      source: 'CLIENT',
+      metadata,
+    });
+
+    // Recalculate integrity summary & risk level
+    const aggregation = integrityService.aggregateSignals(attempt.integritySignals, attempt.questionTimings);
+    if (!attempt.integritySummary) {
+      attempt.integritySummary = {};
+    }
+    attempt.integritySummary.totalSignals = aggregation.totalSignals;
+    attempt.integritySummary.riskLevel = aggregation.riskLevel;
+    attempt.integritySummary.signalCounts = aggregation.signalCounts;
+
+    await attempt.save();
+
+    // Broadcast real-time Socket.IO alert to connected instructor monitoring rooms
+    try {
+      const { broadcastMonitoringEvent } = require('../sockets/socket.server');
+      broadcastMonitoringEvent(attempt.examId.toString(), 'integrity_signal', {
+        examId: attempt.examId,
+        attemptId: attempt._id,
+        studentId: attempt.studentId,
+        signalType,
+        severity,
+        riskLevel: aggregation.riskLevel,
+        riskScore: aggregation.totalScore,
+        totalSignals: aggregation.totalSignals,
+        timestamp: now,
+        metadata,
+      });
+    } catch (socketErr) {
+      console.warn('[SOCKET_BROADCAST_WARN]', socketErr.message);
+    }
+
+    return attempt;
+  }
+
+  /**
+   * Update Integrity Review Status (Instructor)
+   */
+  async updateReviewStatus(attemptId, { reviewStatus, instructorNote }, user) {
+    const attempt = await ExamAttempt.findById(attemptId);
+    if (!attempt) {
+      const error = new Error('Attempt not found.');
+      error.statusCode = 404;
+      throw error;
+    }
+    const course = await Course.findById(attempt.courseId);
+    const isAssigned = course && course.instructorIds.some(id => id.toString() === user._id.toString());
+    if (!isAssigned) {
+      const error = new Error('Access denied.');
+      error.statusCode = 403;
+      throw error;
+    }
+
+    if (!attempt.integritySummary || !attempt.integritySummary.riskLevel) {
+      const exam = await Exam.findById(attempt.examId);
+      const summaryResult = await integrityService.generateAIIntegritySummary(
+        exam ? exam.title : 'Exam',
+        attempt.integritySignals || [],
+        attempt.questionTimings || []
+      );
+      attempt.integritySummary = {
+        totalSignals: summaryResult.totalSignals,
+        riskLevel: summaryResult.riskLevel,
+        signalCounts: summaryResult.signalCounts,
+        aiSummary: summaryResult.aiSummary,
+        aiRecommendation: summaryResult.aiRecommendation,
+        reviewStatus: 'PENDING',
+      };
+    }
+
+    if (reviewStatus) attempt.integritySummary.reviewStatus = reviewStatus;
+    if (instructorNote !== undefined) attempt.integritySummary.instructorNote = instructorNote;
+    attempt.integritySummary.reviewedAt = new Date();
+    attempt.integritySummary.reviewedBy = user._id;
+
+    await attempt.save();
+
+    await auditService.logAudit({
+      actor: user,
+      action: 'INTEGRITY_REVIEW_UPDATED',
+      resourceType: 'ExamAttempt',
+      resourceId: attempt._id,
+      resourceName: `Attempt ${attempt._id}`,
+      courseId: attempt.courseId,
+      institutionId: attempt.institutionId,
+      status: 'SUCCESS',
+      metadata: { reviewStatus: attempt.integritySummary.reviewStatus, instructorNote },
+    });
+
+    return attempt;
+  }
+
+  /**
+   * Get real Instructor Proctoring & Integrity Dashboard data
+   */
+  async getInstructorProctoringDashboard(user, filters = {}) {
+    if (user.role !== ROLES.INSTRUCTOR) {
+      const error = new Error('Access denied. Only instructors can access the proctoring dashboard.');
+      error.statusCode = 403;
+      throw error;
+    }
+
+    const assignedCourses = await Course.find({ instructorIds: user._id }).select('_id name code');
+    const courseIds = assignedCourses.map((c) => c._id);
+
+    const examQuery = { courseId: { $in: courseIds } };
+    if (filters.examId) examQuery._id = filters.examId;
+
+    const exams = await Exam.find(examQuery).select('_id title courseId status duration totalMarks').populate('courseId', 'name code').lean();
+    const examIds = exams.map((e) => e._id);
+
+    const attemptQuery = { examId: { $in: examIds } };
+
+    const attemptsRaw = await ExamAttempt.find(attemptQuery)
+      .populate('studentId', 'name email rollNumber')
+      .populate('examId', 'title courseId duration')
+      .populate('courseId', 'name code')
+      .sort({ updatedAt: -1 })
+      .lean();
+
+    const SimilarityReport = require('../models/SimilarityReport');
+    const similarityReports = await SimilarityReport.find({ examId: { $in: examIds } }).lean();
+
+    const mappedAttempts = attemptsRaw.map((att) => {
+      const signals = att.integritySignals || [];
+      const timings = att.questionTimings || [];
+      const aggregation = integrityService.aggregateSignals(signals, timings);
+
+      const reviewStatus = att.integritySummary?.reviewStatus || 'UNREVIEWED';
+      const riskLevel = att.integritySummary?.riskLevel || aggregation.riskLevel;
+
+      const attReports = similarityReports.filter(
+        (r) => r.attemptId.toString() === att._id.toString() || r.comparedAttemptId.toString() === att._id.toString()
+      );
+
+      return {
+        attemptId: att._id,
+        examId: att.examId?._id || att.examId,
+        examTitle: att.examId?.title || 'Exam',
+        courseId: att.courseId?._id || att.courseId,
+        courseCode: att.courseId?.code || '',
+        courseName: att.courseId?.name || '',
+        student: att.studentId
+          ? {
+              id: att.studentId._id,
+              name: att.studentId.name,
+              email: att.studentId.email,
+              rollNumber: att.studentId.rollNumber || '',
+            }
+          : { name: 'Student' },
+        status: att.status,
+        score: att.totalScore || 0,
+        percentage: att.percentage || 0,
+        submittedAt: att.submittedAt,
+        startedAt: att.startedAt,
+        totalSignals: aggregation.totalSignals,
+        riskLevel,
+        signalCounts: aggregation.signalCounts,
+        integritySignals: signals,
+        questionTimings: timings,
+        integritySummary: {
+          totalSignals: aggregation.totalSignals,
+          riskLevel,
+          signalCounts: aggregation.signalCounts,
+          aiSummary: att.integritySummary?.aiSummary || integrityService.buildDeterministicSummary(aggregation),
+          aiRecommendation: att.integritySummary?.aiRecommendation || 'Instructor review recommended.',
+          reviewStatus,
+          instructorNote: att.integritySummary?.instructorNote || '',
+          reviewedAt: att.integritySummary?.reviewedAt || null,
+        },
+        similarityReports: attReports,
+      };
+    });
+
+    let filtered = mappedAttempts;
+    if (filters.riskLevel) {
+      filtered = filtered.filter((a) => a.riskLevel === filters.riskLevel.toUpperCase());
+    }
+    if (filters.reviewStatus) {
+      filtered = filtered.filter((a) => a.integritySummary.reviewStatus === filters.reviewStatus.toUpperCase());
+    }
+    if (filters.signalType) {
+      filtered = filtered.filter((a) => Boolean(a.signalCounts[filters.signalType]));
+    }
+    if (filters.search) {
+      const q = filters.search.toLowerCase();
+      filtered = filtered.filter((a) => a.student.name.toLowerCase().includes(q) || a.examTitle.toLowerCase().includes(q));
+    }
+
+    const highRiskCount = mappedAttempts.filter((a) => a.riskLevel === 'HIGH').length;
+    const mediumRiskCount = mappedAttempts.filter((a) => a.riskLevel === 'MEDIUM').length;
+    const unreviewedCount = mappedAttempts.filter(
+      (a) => a.integritySummary.reviewStatus === 'UNREVIEWED' || a.integritySummary.reviewStatus === 'PENDING'
+    ).length;
+
+    return {
+      stats: {
+        totalAssignedExams: exams.length,
+        totalAttempts: mappedAttempts.length,
+        highRiskAttemptsCount: highRiskCount,
+        mediumRiskAttemptsCount: mediumRiskCount,
+        unreviewedCount,
+      },
+      exams: exams.map((e) => ({ id: e._id, title: e.title, courseCode: e.courseId?.code })),
+      attempts: filtered,
+    };
+  }
+
+  /**
+   * Get single attempt integrity details with similarity reports
+   */
+  async getAttemptIntegrityDetails(attemptId, user) {
+    const attempt = await ExamAttempt.findById(attemptId)
+      .populate('studentId', 'name email rollNumber')
+      .populate('examId', 'title courseId duration')
+      .populate('courseId', 'name code instructorIds')
+      .populate('answers.questionId', 'questionText options difficulty type')
+      .lean();
+
+    if (!attempt) {
+      const error = new Error('Attempt not found.');
+      error.statusCode = 404;
+      throw error;
+    }
+
+    const course = attempt.courseId;
+    if (!course || !course.instructorIds.some((id) => id.toString() === user._id.toString())) {
+      const error = new Error('Access denied.');
+      error.statusCode = 403;
+      throw error;
+    }
+
+    const SimilarityReport = require('../models/SimilarityReport');
+    const similarityReports = await SimilarityReport.find({
+      $or: [{ attemptId: attempt._id }, { comparedAttemptId: attempt._id }],
+    })
+      .populate('studentId', 'name email')
+      .populate('comparedStudentId', 'name email')
+      .populate('questionId', 'questionText')
+      .lean();
+
+    const aggregation = integrityService.aggregateSignals(attempt.integritySignals || [], attempt.questionTimings || []);
+
+    return {
+      attempt,
+      aggregation,
+      similarityReports,
+    };
+  }
+
+  /**
+   * Run Similarity Check for Exam
+   */
+  async runExamSimilarityCheck(examId, user) {
+    const result = await integrityService.runExamSimilarityCheck(examId, user);
+    await auditService.logAudit({
+      actor: user,
+      action: 'SIMILARITY_CHECK_RUN',
+      resourceType: 'Exam',
+      resourceId: examId,
+      status: 'SUCCESS',
+      metadata: { reportsCount: result.reportsCount },
+    });
+    return result;
   }
 }
 

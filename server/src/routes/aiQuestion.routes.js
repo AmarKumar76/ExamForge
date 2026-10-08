@@ -1,6 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const aiController = require('../controllers/ai.controller');
+const folderController = require('../controllers/folder.controller');
 const { requireAuth } = require('../middleware/auth.middleware');
 const { requireRole } = require('../middleware/role.middleware');
 const { ROLES } = require('../constants/roles');
@@ -58,4 +59,19 @@ router.delete(
   aiController.deleteQuestion
 );
 
+// Move bulk questions to folder
+router.patch(
+  '/bulk/folder',
+  requireRole(...INSTRUCTOR_ROLE),
+  folderController.bulkMoveQuestions
+);
+
+// Move single question to folder
+router.patch(
+  '/:questionId/folder',
+  requireRole(...INSTRUCTOR_ROLE),
+  folderController.moveQuestion
+);
+
 module.exports = router;
+

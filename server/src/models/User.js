@@ -49,16 +49,70 @@ const userSchema = new mongoose.Schema(
       ref: 'Institution',
       default: null,
     },
+    // Student specific fields (sparse unique index: absent when undefined)
+    enrollmentNumber: {
+      type: String,
+      trim: true,
+      index: { unique: true, sparse: true },
+    },
+    rollNumber: {
+      type: String,
+      trim: true,
+      index: { unique: true, sparse: true },
+    },
+    semester: {
+      type: String,
+      trim: true,
+      default: '',
+    },
+    batch: {
+      type: String,
+      trim: true,
+      default: '',
+    },
+    // Instructor specific fields (sparse unique index: absent when undefined)
+    employeeId: {
+      type: String,
+      trim: true,
+      index: { unique: true, sparse: true },
+    },
     avatar: {
       type: String,
       default: null,
+    },
+    phone: {
+      type: String,
+      default: '',
+    },
+    department: {
+      type: String,
+      default: '',
+      trim: true,
     },
     themePreference: {
       type: String,
       enum: ['light', 'dark'],
       default: 'light',
     },
+    notificationPreferences: {
+      examSubmissions: { type: Boolean, default: true },
+      resultUpdates: { type: Boolean, default: true },
+      aiQuestionGen: { type: Boolean, default: true },
+      studentActivity: { type: Boolean, default: true },
+    },
     lastLoginAt: {
+      type: Date,
+      default: null,
+    },
+    isVerified: {
+      type: Boolean,
+      default: false,
+    },
+    verificationToken: {
+      type: String,
+      default: null,
+    },
+    verificationTokenExpires: {
       type: Date,
       default: null,
     },
@@ -86,8 +140,22 @@ userSchema.methods.toSafeObject = function () {
     role: this.role,
     status: this.status,
     institutionId: this.institutionId,
+    enrollmentNumber: this.enrollmentNumber || null,
+    rollNumber: this.rollNumber || null,
+    semester: this.semester || '',
+    batch: this.batch || '',
+    employeeId: this.employeeId || null,
     avatar: this.avatar,
-    themePreference: this.themePreference,
+    phone: this.phone || '',
+    department: this.department || '',
+    isVerified: this.isVerified ?? false,
+    themePreference: this.themePreference || 'light',
+    notificationPreferences: this.notificationPreferences || {
+      examSubmissions: true,
+      resultUpdates: true,
+      aiQuestionGen: true,
+      studentActivity: true,
+    },
     createdAt: this.createdAt,
     updatedAt: this.updatedAt,
   };

@@ -26,10 +26,12 @@ class AIController {
   async generateQuestions(req, res, next) {
     try {
       const { courseId } = req.params;
-      const { materialIds, topic, difficulty, difficultyDistribution, questionTypes, numberOfQuestions } = req.body;
+      const { folderId, chapterName, chapter, materialIds, topic, difficulty, difficultyDistribution, questionTypes, numberOfQuestions } = req.body;
 
       const questions = await questionGeneratorService.generateDraftQuestions({
         courseId,
+        folderId,
+        chapterName: chapterName || chapter || topic,
         materialIds,
         topic,
         difficulty,
@@ -56,9 +58,9 @@ class AIController {
   async getQuestions(req, res, next) {
     try {
       const { courseId } = req.params;
-      const { status } = req.query;
+      const { status, folderId } = req.query;
 
-      const questions = await questionGeneratorService.getQuestions(courseId, req.user, status);
+      const questions = await questionGeneratorService.getQuestions(courseId, req.user, status, folderId);
       return res.status(200).json({
         success: true,
         data: questions,

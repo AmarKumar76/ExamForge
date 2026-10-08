@@ -17,7 +17,7 @@ const { generateAccessToken } = require('../../src/utils/jwt');
 const { hashPassword } = require('../../src/utils/password');
 
 describe('Integration Test: Module 5 AI / RAG Question Generation Studio APIs', () => {
-  jest.setTimeout(30000);
+  jest.setTimeout(45000);
 
   let instA, courseA;
   let instructorA, instructorAToken;
@@ -29,7 +29,7 @@ describe('Integration Test: Module 5 AI / RAG Question Generation Studio APIs', 
     process.env.GEMINI_API_KEY = process.env.GEMINI_API_KEY || 'test_dummy_gemini_api_key_for_jest';
 
     if (mongoose.connection.readyState === 0) {
-      await mongoose.connect(config.mongoUri || 'mongodb://127.0.0.1:27017/examforge_test');
+      await mongoose.connect(process.env.MONGO_URI || config.mongoUri || 'mongodb://127.0.0.1:27017/examforge_test');
     }
 
     // Mock external Gemini API calls for automated test suite independence

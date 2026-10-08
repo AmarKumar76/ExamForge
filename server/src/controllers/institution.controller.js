@@ -1,4 +1,5 @@
 const institutionService = require('../services/institution.service');
+const auditService = require('../services/audit.service');
 const { validateInstitutionInput } = require('../validators/institution.validator');
 
 /**
@@ -19,6 +20,15 @@ const create = async (req, res, next) => {
 
     const { name, code, departments, settings } = req.body;
     const institution = await institutionService.createInstitution({ name, code, departments, settings });
+
+    auditService.logAudit({
+      user: req.user,
+      action: 'INSTITUTION_CREATED',
+      resourceType: 'INSTITUTION',
+      resourceId: institution._id.toString(),
+      resourceName: institution.name,
+      institutionId: institution._id,
+    });
 
     return res.status(201).json({
       success: true,
@@ -62,6 +72,13 @@ const getById = async (req, res, next) => {
 
     // RBAC check for Institution Admin
     if (req.user.role === 'INSTITUTION_ADMIN' && req.user.institutionId && req.user.institutionId.toString() !== id) {
+      auditService.logAudit({
+        user: req.user,
+        action: 'FORBIDDEN_RESOURCE_ACCESS',
+        resourceType: 'INSTITUTION',
+        resourceId: id,
+        status: 'DENIED',
+      });
       return res.status(403).json({
         success: false,
         message: 'Access denied to other institution data.',
@@ -89,6 +106,13 @@ const update = async (req, res, next) => {
     const { id } = req.params;
 
     if (req.user.role === 'INSTITUTION_ADMIN' && req.user.institutionId && req.user.institutionId.toString() !== id) {
+      auditService.logAudit({
+        user: req.user,
+        action: 'FORBIDDEN_RESOURCE_ACCESS',
+        resourceType: 'INSTITUTION',
+        resourceId: id,
+        status: 'DENIED',
+      });
       return res.status(403).json({
         success: false,
         message: 'Access denied to modify other institution data.',
@@ -97,6 +121,15 @@ const update = async (req, res, next) => {
     }
 
     const institution = await institutionService.updateInstitution(id, req.body);
+
+    auditService.logAudit({
+      user: req.user,
+      action: 'INSTITUTION_UPDATED',
+      resourceType: 'INSTITUTION',
+      resourceId: institution._id.toString(),
+      resourceName: institution.name,
+      institutionId: institution._id,
+    });
 
     return res.status(200).json({
       success: true,
@@ -127,6 +160,16 @@ const addDepartment = async (req, res, next) => {
 
     const institution = await institutionService.addDepartment(id, department);
 
+    auditService.logAudit({
+      user: req.user,
+      action: 'INSTITUTION_UPDATED',
+      resourceType: 'INSTITUTION',
+      resourceId: institution._id.toString(),
+      resourceName: institution.name,
+      institutionId: institution._id,
+      metadata: { addedDepartment: department },
+    });
+
     return res.status(200).json({
       success: true,
       message: 'Department added successfully.',
@@ -145,6 +188,15 @@ const archive = async (req, res, next) => {
   try {
     const { id } = req.params;
     const institution = await institutionService.archiveInstitution(id);
+
+    auditService.logAudit({
+      user: req.user,
+      action: 'INSTITUTION_ARCHIVED',
+      resourceType: 'INSTITUTION',
+      resourceId: institution._id.toString(),
+      resourceName: institution.name,
+      institutionId: institution._id,
+    });
 
     return res.status(200).json({
       success: true,

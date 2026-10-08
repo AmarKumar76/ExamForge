@@ -1,10 +1,11 @@
 const fs = require('fs');
 const path = require('path');
 const mammoth = require('mammoth');
+const textCleaningService = require('../textCleaning.service');
 
 class DocumentProcessorService {
   /**
-   * Normalizes raw extracted text
+   * Normalizes raw extracted text (whitespace, control chars)
    */
   normalizeText(text) {
     if (!text || typeof text !== 'string') return '';
@@ -38,10 +39,32 @@ class DocumentProcessorService {
             const pdfData = await parseFn(fileBuffer);
             rawText = pdfData.text || '';
           } else {
-            rawText = fileBuffer.toString('utf-8');
+            // Do NOT fall back to raw buffer toString for PDF — it produces binary garbage
+            throw new Error('pdf-parse module unavailable — cannot safely extract PDF text');
           }
         } catch (pdfErr) {
-          rawText = fileBuffer.toString('utf-8').replace(/[^\x20-\x7E\n\t]/g, ' ');
+          // If pdf-parse itself fails (not just unavailable), try limited safe extraction
+          // Only use UTF-8 decode as last resort, with aggressive cleaning
+          const rawBuffer = fileBuffer.toString('latin1');
+          // Extract only text-looking segments from the raw PDF data
+          const textMatches = rawBuffer.match(/BT\s+([\s\S]*?)\s+ET/g) || [];
+          if (textMatches.length > 0) {
+            // Pull out Tj/TJ string operators from PDF content streams
+            const extracted = textMatches
+              .join(' ')
+              .replace(/\(([^)]*)\)\s*Tj/g, '$1 ')
+              .replace(/\[([^\]]*)\]\s*TJ/g, (m, inner) => {
+                return inner.replace(/\(([^)]*)\)/g, '$1').replace(/-?\d+/g, ' ') + ' ';
+              })
+              .replace(/[^a-zA-Z0-9\s.,;:!?'"()\-\u00C0-\u024F]/g, ' ');
+            rawText = extracted;
+          } else {
+            // Complete failure — throw rather than store garbage
+            const error = new Error(`PDF text extraction failed: ${pdfErr.message}. Please re-export as DOCX or PPTX.`);
+            error.statusCode = 422;
+            error.code = 'PDF_EXTRACTION_FAILED';
+            throw error;
+          }
         }
       } else if (fileType === 'DOCX') {
         const docxResult = await mammoth.extractRawText({ buffer: fileBuffer });
@@ -52,6 +75,7 @@ class DocumentProcessorService {
         rawText = fileBuffer.toString('utf-8');
       }
     } catch (err) {
+      if (err.code === 'PDF_EXTRACTION_FAILED') throw err;
       console.warn(`Extraction error for ${fileType} file:`, err.message);
       const error = new Error(`Failed to extract text from ${fileType} file: ${err.message}`);
       error.statusCode = 422;
@@ -59,24 +83,33 @@ class DocumentProcessorService {
       throw error;
     }
 
+    // Apply text normalization
     const normalized = this.normalizeText(rawText);
 
-    if (!normalized || normalized.length < 10) {
-      const error = new Error('Unable to extract readable text content from the document.');
+    // Apply deep PDF artifact cleaning
+    const cleaned = textCleaningService.cleanExtractedText(normalized);
+
+    if (!cleaned || cleaned.length < 50) {
+      const error = new Error(
+        'Unable to extract sufficient readable text from this document. ' +
+        'The file may be image-based, password-protected, or contain only non-text content.'
+      );
       error.statusCode = 422;
       error.code = 'UNREADABLE_DOCUMENT';
       throw error;
     }
 
+    console.log(`[TEXT_CLEAN] originalLength=${normalized.length} cleanedLength=${cleaned.length} ratio=${(cleaned.length/Math.max(1,normalized.length)).toFixed(2)}`);
+
     return {
-      text: normalized,
-      length: normalized.length,
+      text: cleaned,
+      length: cleaned.length,
     };
   }
 
   /**
    * Extracts text slide-by-slide from a PPTX file buffer using JSZip XML parsing
-   * @param {Buffer} fileBuffer 
+   * @param {Buffer} fileBuffer
    */
   async extractPptxText(fileBuffer) {
     try {
@@ -125,9 +158,11 @@ class DocumentProcessorService {
   }
 
   /**
-   * Splits normalized text into deterministic chunks with overlap
-   * @param {string} text Normalized document text
-   * @param {object} options { chunkSize: 250, overlapSize: 40 }
+   * Splits cleaned text into deterministic chunks with overlap.
+   * Filters out chunks that fail the meaningfulness quality check.
+   * @param {string} text Cleaned document text
+   * @param {object} options { chunkSize: 200, overlapSize: 30 }
+   * @returns {Array<{chunkIndex: number, text: string, tokenCount: number}>}
    */
   chunkText(text, options = {}) {
     const chunkSize = options.chunkSize || 200; // Words per chunk
@@ -136,7 +171,7 @@ class DocumentProcessorService {
     const words = text.split(/\s+/).filter(Boolean);
     if (words.length === 0) return [];
 
-    const chunks = [];
+    const rawChunks = [];
     let chunkIndex = 0;
     let start = 0;
 
@@ -145,7 +180,7 @@ class DocumentProcessorService {
       const chunkWords = words.slice(start, end);
       const chunkText = chunkWords.join(' ');
 
-      chunks.push({
+      rawChunks.push({
         chunkIndex,
         text: chunkText,
         tokenCount: chunkWords.length,
@@ -156,7 +191,18 @@ class DocumentProcessorService {
       start += chunkSize - overlapSize;
     }
 
-    return chunks;
+    // Filter chunks that are mostly PDF garbage
+    const { goodChunks, rejectedCount, rejectedReasons } = textCleaningService.filterMeaningfulChunks(rawChunks);
+
+    if (rejectedCount > 0) {
+      console.warn(`[CHUNK_QUALITY_FILTER] Rejected ${rejectedCount}/${rawChunks.length} low-quality chunks.`);
+      if (rejectedReasons.length <= 5) {
+        console.warn('[CHUNK_QUALITY_FILTER] Reasons:', rejectedReasons);
+      }
+    }
+
+    // Re-index accepted chunks sequentially
+    return goodChunks.map((c, i) => ({ ...c, chunkIndex: i }));
   }
 }
 

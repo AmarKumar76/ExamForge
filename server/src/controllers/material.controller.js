@@ -1,4 +1,5 @@
 const materialService = require('../services/material.service');
+const auditService = require('../services/audit.service');
 
 /**
  * POST /api/v1/courses/:courseId/materials
@@ -17,6 +18,19 @@ const create = async (req, res, next) => {
       title,
       description,
       topic,
+    });
+
+    auditService.logAudit({
+      actor: req.user,
+      action: 'MATERIAL_UPLOADED',
+      resourceType: 'CourseMaterial',
+      resourceId: material._id,
+      resourceName: material.title,
+      courseId: material.courseId,
+      institutionId: material.institutionId,
+      status: 'SUCCESS',
+      metadata: { originalFileName: material.originalFileName, fileType: material.fileType, fileSize: material.fileSize },
+      req,
     });
 
     return res.status(201).json({
@@ -117,6 +131,19 @@ const archive = async (req, res, next) => {
     const { id } = req.params;
     const material = await materialService.archiveMaterial(id, req.user);
 
+    auditService.logAudit({
+      actor: req.user,
+      action: 'MATERIAL_ARCHIVED',
+      resourceType: 'CourseMaterial',
+      resourceId: material._id,
+      resourceName: material.title,
+      courseId: material.courseId,
+      institutionId: material.institutionId,
+      status: 'SUCCESS',
+      metadata: { originalFileName: material.originalFileName },
+      req,
+    });
+
     return res.status(200).json({
       success: true,
       message: 'Course material archived successfully.',
@@ -134,7 +161,20 @@ const archive = async (req, res, next) => {
 const remove = async (req, res, next) => {
   try {
     const { id } = req.params;
+    const material = await materialService.getMaterialById(id, req.user);
     await materialService.deleteMaterial(id, req.user);
+
+    auditService.logAudit({
+      actor: req.user,
+      action: 'MATERIAL_DELETED',
+      resourceType: 'CourseMaterial',
+      resourceId: id,
+      resourceName: material ? material.title : 'Material',
+      courseId: material ? material.courseId : null,
+      institutionId: material ? material.institutionId : null,
+      status: 'SUCCESS',
+      req,
+    });
 
     return res.status(200).json({
       success: true,

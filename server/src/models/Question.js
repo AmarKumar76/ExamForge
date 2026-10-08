@@ -8,6 +8,12 @@ const questionSchema = new mongoose.Schema(
       required: [true, 'Course ID is required'],
       index: true,
     },
+    folderId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'QuestionFolder',
+      default: null,
+      index: true,
+    },
     institutionId: {
       type: mongoose.Schema.Types.ObjectId,
       ref: 'Institution',

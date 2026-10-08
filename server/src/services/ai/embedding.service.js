@@ -86,17 +86,26 @@ class GeminiEmbeddingProvider {
       throw new Error('GEMINI_API_KEY is missing');
     }
 
-    const model = genAI.getGenerativeModel({ model: this.modelName });
-
+    const truncated = text.substring(0, 2048);
     try {
-      const truncated = text.substring(0, 2048);
+      const model = genAI.getGenerativeModel({ model: this.modelName });
       const result = await model.embedContent(truncated);
-
       if (result && result.embedding && Array.isArray(result.embedding.values)) {
         return result.embedding.values;
       }
-      throw new Error('Gemini embedding API returned empty vector response');
     } catch (err) {
+      if (err.message?.includes('404') || err.message?.includes('not found')) {
+        try {
+          const fallbackModel = genAI.getGenerativeModel({ model: 'embedding-001' });
+          const fallbackResult = await fallbackModel.embedContent(truncated);
+          if (fallbackResult && fallbackResult.embedding && Array.isArray(fallbackResult.embedding.values)) {
+            return fallbackResult.embedding.values;
+          }
+        } catch (fbErr) {
+          // Re-throw original if fallback fails too
+        }
+      }
+
       const is429 =
         err.message?.includes('429') ||
         err.message?.includes('Too Many Requests') ||

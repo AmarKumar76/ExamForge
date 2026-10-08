@@ -15,6 +15,17 @@ const config = {
     secret: process.env.JWT_SECRET || 'dev_fallback_jwt_secret_key_2026',
     expiresIn: process.env.JWT_EXPIRES_IN || '7d',
   },
+  superAdmin: {
+    email: process.env.SUPERADMIN_EMAIL || 'amar766730@gmail.com',
+    password: process.env.SUPERADMIN_PASSWORD || 'Amar@123',
+  },
+  smtp: {
+    host: process.env.SMTP_HOST || 'smtp.gmail.com',
+    port: parseInt(process.env.SMTP_PORT, 10) || 587,
+    user: process.env.SMTP_USER || 'amar766730@gmail.com',
+    pass: process.env.SMTP_PASSWORD || process.env.SMTP_PASS || '',
+    from: process.env.SMTP_FROM || 'ExamForge System <amar766730@gmail.com>',
+  },
 };
 
 if (!config.mongoUri && process.env.NODE_ENV !== 'test') {

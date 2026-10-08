@@ -1,4 +1,5 @@
 const config = require('../config/env');
+const auditService = require('../services/audit.service');
 
 /**
  * 404 Route Not Found Middleware
@@ -44,6 +45,58 @@ const errorHandler = (err, req, res, next) => {
     code = 'INVALID_ID';
   }
 
+  // Log Security & System Events safely without blocking error response
+  try {
+    if (statusCode === 401) {
+      auditService.logAudit({
+        actor: req.user || null,
+        action: 'UNAUTHORIZED_ACCESS',
+        resourceType: 'API',
+        resourceName: req.originalUrl,
+        status: 'FAILED',
+        metadata: { path: req.originalUrl, method: req.method, code, message },
+        req,
+      });
+    } else if (statusCode === 403) {
+      auditService.logAudit({
+        actor: req.user || null,
+        action: 'FORBIDDEN_RESOURCE_ACCESS',
+        resourceType: 'API',
+        resourceName: req.originalUrl,
+        status: 'FAILED',
+        metadata: { path: req.originalUrl, method: req.method, code, message },
+        req,
+      });
+    } else if (statusCode === 400 || code === 'INVALID_ID') {
+      auditService.logAudit({
+        actor: req.user || null,
+        action: 'INVALID_RESOURCE_REQUEST',
+        resourceType: 'API',
+        resourceName: req.originalUrl,
+        status: 'FAILED',
+        metadata: { path: req.originalUrl, method: req.method, code, message },
+        req,
+      });
+    }
+
+    if (statusCode >= 500) {
+      auditService.logSystem({
+        level: 'ERROR',
+        service: 'API',
+        module: 'ExpressRoute',
+        event: 'SERVER_ERROR',
+        message: err.message || 'Internal server error',
+        status: 'ERROR',
+        requestId: req.headers['x-request-id'] || null,
+        stackTrace: err.stack,
+        institutionId: req.user?.institutionId || null,
+        metadata: { path: req.originalUrl, method: req.method, code },
+      });
+    }
+  } catch (logErr) {
+    console.error('Failed to write audit/system log in errorHandler:', logErr);
+  }
+
   const response = {
     success: false,
     message,
@@ -61,3 +114,4 @@ module.exports = {
   notFoundHandler,
   errorHandler,
 };
+
