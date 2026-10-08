@@ -7,6 +7,7 @@ const Question = require('../models/Question');
 const auditService = require('./audit.service');
 const integrityService = require('./integrity.service');
 const { ROLES } = require('../constants/roles');
+const { formatExamDateTime } = require('../utils/dateUtils');
 
 class ReportService {
   /**
@@ -257,7 +258,7 @@ class ReportService {
         percentage: `${percentage}%`,
         grade,
         status: isPassed ? 'PASS' : 'FAIL',
-        submissionTime: att.submittedAt ? new Date(att.submittedAt).toLocaleString() : 'In Progress / Not Submitted',
+        submissionTime: att.submittedAt ? formatExamDateTime(att.submittedAt) : 'In Progress / Not Submitted',
       };
     });
 
@@ -336,8 +337,8 @@ class ReportService {
         percentage: `${percentage}%`,
         grade,
         status: isPassed ? 'PASS' : 'FAIL',
-        startTime: att.startedAt ? new Date(att.startedAt).toLocaleString() : 'N/A',
-        submissionTime: att.submittedAt ? new Date(att.submittedAt).toLocaleString() : 'N/A',
+        startTime: att.startedAt ? formatExamDateTime(att.startedAt) : 'N/A',
+        submissionTime: att.submittedAt ? formatExamDateTime(att.submittedAt) : 'N/A',
         timeTaken,
       };
     });
@@ -555,7 +556,7 @@ class ReportService {
         riskScore: aggregation.totalScore,
         totalSignals: aggregation.totalSignals,
         signalBreakdown: breakdown,
-        timestamp: att.submittedAt ? new Date(att.submittedAt).toLocaleString() : new Date(att.startedAt).toLocaleString(),
+        timestamp: att.submittedAt ? formatExamDateTime(att.submittedAt) : formatExamDateTime(att.startedAt),
         reviewStatus,
         instructorNote,
       };
@@ -684,7 +685,7 @@ class ReportService {
       <div class="subtitle">${report.reportType.replace(/_/g, ' ')} Report</div>
     </div>
     <div style="text-align: right; font-size: 10px; color: #64748b;">
-      <div>Generated: ${new Date(report.generatedAt).toLocaleString()}</div>
+      <div>Generated: ${formatExamDateTime(report.generatedAt)}</div>
     </div>
   </div>
 

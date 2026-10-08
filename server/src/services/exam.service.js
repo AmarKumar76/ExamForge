@@ -9,6 +9,7 @@ const auditService = require('./audit.service');
 const integrityService = require('./integrity.service');
 const reportService = require('./report.service');
 const emailService = require('./email.service');
+const { parseISTDateTime, formatExamDateTime, formatExamDate, formatExamTime } = require('../utils/dateUtils');
 
 class ExamService {
   /**
@@ -108,8 +109,8 @@ class ExamService {
       throw error;
     }
 
-    const start = startTime ? new Date(startTime) : null;
-    const end = endTime ? new Date(endTime) : null;
+    const start = startTime ? parseISTDateTime(startTime) : null;
+    const end = endTime ? parseISTDateTime(endTime) : null;
     if (start && end && start >= end) {
       const error = new Error('Exam start time must be before end time.');
       error.statusCode = 400;
@@ -767,8 +768,8 @@ class ExamService {
     if (updateData.difficultyDistribution) exam.difficultyDistribution = updateData.difficultyDistribution;
     if (updateData.status) exam.status = updateData.status;
 
-    const newStart = updateData.startTime !== undefined ? (updateData.startTime ? new Date(updateData.startTime) : null) : exam.startTime;
-    const newEnd = updateData.endTime !== undefined ? (updateData.endTime ? new Date(updateData.endTime) : null) : exam.endTime;
+    const newStart = updateData.startTime !== undefined ? (updateData.startTime ? parseISTDateTime(updateData.startTime) : null) : exam.startTime;
+    const newEnd = updateData.endTime !== undefined ? (updateData.endTime ? parseISTDateTime(updateData.endTime) : null) : exam.endTime;
 
     if (newStart && newEnd && newStart >= newEnd) {
       const error = new Error('Exam start time must be before end time.');
@@ -943,9 +944,9 @@ class ExamService {
         title: exam.title,
         courseName: course.name,
         courseCode: course.code,
-        examDate: exam.startTime ? new Date(exam.startTime).toLocaleDateString() : 'Flexible / Active',
-        startTime: exam.startTime ? new Date(exam.startTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : 'Immediate',
-        endTime: exam.endTime ? new Date(exam.endTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : 'N/A',
+        examDate: exam.startTime ? formatExamDate(exam.startTime) : 'Flexible / Active',
+        startTime: exam.startTime ? formatExamTime(exam.startTime) : 'Immediate',
+        endTime: exam.endTime ? formatExamTime(exam.endTime) : 'N/A',
         durationMinutes: exam.duration,
         totalQuestions: exam.questionsPerStudent || (exam.questionIds ? exam.questionIds.length : 0),
         totalMarks: exam.totalMarks,
@@ -1149,7 +1150,7 @@ class ExamService {
       // Schedule check
       const now = new Date();
       if (exam.startTime && now < new Date(exam.startTime)) {
-        const error = new Error(`Exam has not started yet. Scheduled start time: ${new Date(exam.startTime).toLocaleString()}`);
+        const error = new Error(`Exam has not started yet. Scheduled start time: ${formatExamDateTime(exam.startTime)}`);
         error.statusCode = 400;
         error.code = 'EXAM_NOT_STARTED';
         throw error;
