@@ -20,16 +20,20 @@ describe('Admin Analytics Real-Data Counts & Dynamic Auto-Refresh Test Suite', (
   });
 
   afterAll(async () => {
-    await disconnectDB();
-  });
-
-  beforeEach(async () => {
     if (mongoose.connection.readyState === 1) {
-      // Clear all user records for complete test isolation
       await User.deleteMany({});
       await Course.deleteMany({ code: /^ANALYTICS-/ });
       await Institution.deleteMany({ code: /^ANALYTICS-/ });
       await SystemLog.deleteMany({});
+    }
+    await disconnectDB();
+  });
+
+  beforeEach(async () => {
+    await User.deleteMany({});
+    await Course.deleteMany({ code: /^ANALYTICS-/ });
+    await Institution.deleteMany({ code: /^ANALYTICS-/ });
+    await SystemLog.deleteMany({});
 
       testInst = await Institution.create({
         name: 'Analytics Test Institution',

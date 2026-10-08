@@ -7,6 +7,16 @@ const connectDB = async () => {
       throw new Error('MongoDB connection URI (MONGO_URI) is missing.');
     }
 
+    const isTest = config.env === 'test' || process.env.JEST_WORKER_ID !== undefined;
+    const dbMatch = String(config.mongoUri).toLowerCase().match(/\/([a-z0-9_-]+)(\?|$)/i);
+    const targetDbName = dbMatch ? dbMatch[1] : '';
+
+    if (isTest && targetDbName === 'examforge') {
+      const fatalErr = 'SAFETY_GUARD_PROD_DB_BLOCKED: Connection to production database "examforge" is strictly forbidden during tests.';
+      console.error(`\n🔴 FATAL SAFETY GUARD: ${fatalErr}\n`);
+      throw new Error(fatalErr);
+    }
+
     let conn;
     try {
       conn = await mongoose.connect(config.mongoUri, {
@@ -15,8 +25,9 @@ const connectDB = async () => {
       });
     } catch (primaryErr) {
       console.warn(`⚠️ Primary MongoDB Connection Failed (${primaryErr.message}). Trying local MongoDB fallback...`);
+      const localFallbackUri = isTest ? 'mongodb://127.0.0.1:27017/examforge_test' : 'mongodb://127.0.0.1:27017/examforge';
       try {
-        conn = await mongoose.connect('mongodb://127.0.0.1:27017/examforge', {
+        conn = await mongoose.connect(localFallbackUri, {
           autoIndex: true,
           serverSelectionTimeoutMS: 3000,
         });
@@ -34,7 +45,9 @@ const connectDB = async () => {
     });
 
     mongoose.connection.on('disconnected', () => {
-      console.warn('⚠️ MongoDB Disconnected. Attempting reconnection...');
+      if (config.env !== 'test') {
+        console.warn('⚠️ MongoDB Disconnected. Attempting reconnection...');
+      }
     });
 
     return conn;
@@ -49,7 +62,9 @@ const connectDB = async () => {
 
 const disconnectDB = async () => {
   try {
-    await mongoose.connection.close();
+    if (mongoose.connection.readyState !== 0) {
+      await mongoose.connection.close();
+    }
     if (config.env !== 'test') {
       console.log('🔌 MongoDB connection closed gracefully.');
     }

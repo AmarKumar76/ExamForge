@@ -6,11 +6,39 @@ dotenv.config({ path: path.resolve(__dirname, '../../.env') });
 // Fallback check for root level .env
 dotenv.config({ path: path.resolve(__dirname, '../../../.env') });
 
+const isTestEnv = process.env.NODE_ENV === 'test' || process.env.JEST_WORKER_ID !== undefined;
+
+let selectedMongoUri;
+if (isTestEnv) {
+  selectedMongoUri = process.env.MONGO_URI_TEST || process.env.TEST_MONGO_URI;
+  if (!selectedMongoUri && process.env.MONGO_URI) {
+    selectedMongoUri = process.env.MONGO_URI.replace(/\/examforge(\?|$)/i, '/examforge_test$1');
+  }
+  if (!selectedMongoUri) {
+    selectedMongoUri = 'mongodb://127.0.0.1:27017/examforge_test';
+  }
+} else {
+  selectedMongoUri = process.env.MONGO_URI || process.env.MONGODB_URI;
+}
+
+// CRITICAL SAFETY GUARD CHECK
+if (isTestEnv) {
+  const uriLower = String(selectedMongoUri).toLowerCase();
+  const dbMatch = uriLower.match(/\/([a-z0-9_-]+)(\?|$)/i);
+  const dbName = dbMatch ? dbMatch[1] : '';
+
+  if (dbName === 'examforge' || uriLower.includes('/examforge?') || uriLower.endsWith('/examforge')) {
+    const errorMsg = 'SAFETY_GUARD_PROD_DB_BLOCKED: Jest test execution attempted to connect to production database "examforge". Execution aborted immediately.';
+    console.error(`\n🔴 FATAL SAFETY GUARD: ${errorMsg}\n`);
+    throw new Error(errorMsg);
+  }
+}
+
 const config = {
-  env: process.env.NODE_ENV || 'development',
+  env: isTestEnv ? 'test' : (process.env.NODE_ENV || 'development'),
   port: parseInt(process.env.PORT, 10) || 5000,
   clientUrl: process.env.CLIENT_URL || 'http://localhost:5173',
-  mongoUri: process.env.MONGO_URI || process.env.MONGODB_URI,
+  mongoUri: selectedMongoUri,
   jwt: {
     secret: process.env.JWT_SECRET || 'dev_fallback_jwt_secret_key_2026',
     expiresIn: process.env.JWT_EXPIRES_IN || '7d',
@@ -28,7 +56,7 @@ const config = {
   },
 };
 
-if (!config.mongoUri && process.env.NODE_ENV !== 'test') {
+if (!config.mongoUri && config.env !== 'test') {
   console.warn('⚠️ WARNING: MONGO_URI is not defined in environment variables.');
 }
 

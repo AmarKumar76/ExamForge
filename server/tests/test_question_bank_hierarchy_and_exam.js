@@ -10,7 +10,8 @@ const examService = require('../src/services/exam.service');
 const questionGeneratorService = require('../src/services/ai/questionGenerator.service');
 
 async function runTests() {
-  const MONGO_URI = process.env.MONGO_URI || process.env.MONGODB_URI || 'mongodb://localhost:27017/examforge';
+  const config = require('../src/config/env');
+  const MONGO_URI = config.mongoUri;
   console.log('Connecting to MongoDB at:', MONGO_URI);
   await mongoose.connect(MONGO_URI);
 

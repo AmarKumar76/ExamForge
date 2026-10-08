@@ -22,6 +22,12 @@ describe('Authentication, Email Notifications & Database Verification Suite', ()
   });
 
   afterAll(async () => {
+    if (mongoose.connection.readyState === 1) {
+      await User.deleteMany({ email: { $in: ['amar766730@gmail.com', /@email-test\.org$/] } });
+      await Course.deleteMany({ code: /^EFLOW-/ });
+      await Institution.deleteMany({ code: /^EFLOW-/ });
+      await Notification.deleteMany({});
+    }
     await disconnectDB();
   });
 

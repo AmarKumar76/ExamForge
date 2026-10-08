@@ -7,7 +7,8 @@ const Course = require('../src/models/Course');
 const folderController = require('../src/controllers/folder.controller');
 
 async function runTest() {
-  const MONGO_URI = process.env.MONGO_URI || process.env.MONGODB_URI || 'mongodb://localhost:27017/examforge';
+  const config = require('../src/config/env');
+  const MONGO_URI = config.mongoUri;
   console.log('Connecting to MongoDB at:', MONGO_URI);
   await mongoose.connect(MONGO_URI);
 

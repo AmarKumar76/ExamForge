@@ -19,6 +19,11 @@ describe('Student Provisioning & Welcome Email Flow Suite', () => {
   });
 
   afterAll(async () => {
+    if (mongoose.connection.readyState === 1) {
+      await User.deleteMany({});
+      await Institution.deleteMany({ code: /^PROV-/ });
+      await Notification.deleteMany({});
+    }
     await disconnectDB();
   });
 

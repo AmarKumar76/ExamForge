@@ -18,6 +18,11 @@ describe('Admin Student & Instructor Management Integration Tests', () => {
   });
 
   afterAll(async () => {
+    if (mongoose.connection.readyState === 1) {
+      await User.deleteMany({ email: /@mgmt-test\.org$/ });
+      await Course.deleteMany({ code: /^MGMT-/ });
+      await Institution.deleteMany({ code: /^MGMT-INST/ });
+    }
     await disconnectDB();
   });
 

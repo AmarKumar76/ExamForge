@@ -1,9 +1,6 @@
 const mongoose = require('mongoose');
-const dotenv = require('dotenv');
-const path = require('path');
-
-dotenv.config({ path: path.join(__dirname, '../.env') });
-const MONGO_URI = process.env.MONGO_URI || process.env.MONGODB_URI;
+const config = require('../src/config/env');
+const MONGO_URI = config.mongoUri;
 
 const Exam = require('../src/models/Exam');
 const ExamAttempt = require('../src/models/ExamAttempt');
