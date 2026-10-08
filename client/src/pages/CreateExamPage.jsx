@@ -8,6 +8,11 @@ import { aiService } from '../services/aiService';
 import { examService } from '../services/examService';
 import { folderService } from '../services/folderService';
 import {
+  dateToDateTimeLocalString,
+  dateTimeLocalToISOString,
+  formatExamDateTime,
+} from '../utils/dateUtils';
+import {
   CheckCircle2,
   AlertCircle,
   X,
@@ -273,8 +278,8 @@ export const CreateExamPage = () => {
         passingMarks: examData.passingMarks || 40,
         questionsPerStudent: examData.questionsPerStudent || 20,
         difficultyDistribution: examData.difficultyDistribution || { easy: 8, medium: 8, hard: 4 },
-        startTime: examData.startTime ? new Date(examData.startTime).toISOString().slice(0, 16) : '',
-        endTime: examData.endTime ? new Date(examData.endTime).toISOString().slice(0, 16) : '',
+        startTime: dateToDateTimeLocalString(examData.startTime),
+        endTime: dateToDateTimeLocalString(examData.endTime),
         publishImmediately: examData.status === 'SCHEDULED' || examData.status === 'PUBLISHED',
       });
     } catch (err) {
@@ -380,8 +385,8 @@ export const CreateExamPage = () => {
           medium: reqMed,
           hard: reqHard,
         },
-        startTime: examForm.startTime || null,
-        endTime: examForm.endTime || null,
+        startTime: dateTimeLocalToISOString(examForm.startTime),
+        endTime: dateTimeLocalToISOString(examForm.endTime),
       };
 
       if (editingExam) {
@@ -525,7 +530,7 @@ export const CreateExamPage = () => {
                       <div className="text-[10px] text-[var(--text-muted)] space-y-0.5">
                         <p>{ex.questionsPerStudent || 0} questions • {ex.duration || 60} mins</p>
                         {ex.startTime && (
-                          <p>Start: {new Date(ex.startTime).toLocaleString([], { dateStyle: 'short', timeStyle: 'short' })}</p>
+                          <p>Start: {formatExamDateTime(ex.startTime)}</p>
                         )}
                         {ex.attemptsStarted > 0 && (
                           <p className="text-amber-600 dark:text-amber-400 font-semibold">Attempts Started: {ex.attemptsStarted}</p>

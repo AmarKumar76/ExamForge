@@ -7,6 +7,7 @@ import { Card } from '../components/ui/Card';
 import { Button } from '../components/ui/Button';
 import { Badge } from '../components/ui/Badge';
 import { examMonitoringService } from '../services/examMonitoringService';
+import { formatExamTime } from '../utils/dateUtils';
 import {
   Activity,
   Tv,
@@ -62,7 +63,9 @@ export const InstructorExamMonitoringPage = () => {
 
   // Real-time Socket.IO Connection & Alerts
   useEffect(() => {
-    const socket = io(import.meta.env.VITE_API_URL || window.location.origin, {
+    const rawApiUrl = import.meta.env.VITE_SOCKET_URL || import.meta.env.VITE_API_URL;
+    const socketUrl = rawApiUrl ? rawApiUrl.replace(/\/api\/v1\/?$/, '') : window.location.origin;
+    const socket = io(socketUrl, {
       transports: ['websocket', 'polling'],
       reconnectionAttempts: 5,
     });
@@ -273,10 +276,10 @@ export const InstructorExamMonitoringPage = () => {
                     <div className="text-xs text-[var(--text-secondary)] flex flex-wrap gap-x-4 gap-y-1">
                       <span>Course: <strong>{ex.courseId?.code} — {ex.courseId?.name}</strong></span>
                       {ex.startTime && (
-                        <span>Started: <strong>{new Date(ex.startTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</strong></span>
+                        <span>Started: <strong>{formatExamTime(ex.startTime)}</strong></span>
                       )}
                       {ex.endTime && (
-                        <span>Ends: <strong>{new Date(ex.endTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</strong></span>
+                        <span>Ends: <strong>{formatExamTime(ex.endTime)}</strong></span>
                       )}
                       <span>Duration: <strong>{ex.duration} Mins</strong></span>
                     </div>

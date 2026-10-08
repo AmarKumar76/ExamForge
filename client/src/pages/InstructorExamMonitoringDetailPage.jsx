@@ -7,6 +7,7 @@ import { Button } from '../components/ui/Button';
 import { Badge } from '../components/ui/Badge';
 import { StatCard } from '../components/ui/StatCard';
 import { examMonitoringService } from '../services/examMonitoringService';
+import { formatExamTime } from '../utils/dateUtils';
 import {
   ArrowLeft,
   RefreshCw,
@@ -99,7 +100,9 @@ export const InstructorExamMonitoringDetailPage = () => {
   useEffect(() => {
     if (!examId) return;
 
-    const socket = io(import.meta.env.VITE_API_URL || window.location.origin, {
+    const rawApiUrl = import.meta.env.VITE_SOCKET_URL || import.meta.env.VITE_API_URL;
+    const socketUrl = rawApiUrl ? rawApiUrl.replace(/\/api\/v1\/?$/, '') : window.location.origin;
+    const socket = io(socketUrl, {
       transports: ['websocket', 'polling'],
       reconnectionAttempts: 5,
     });
@@ -207,10 +210,10 @@ export const InstructorExamMonitoringDetailPage = () => {
               <span>Course: <strong>{exam?.courseId?.code} — {exam?.courseId?.name}</strong></span>
               <span>Status: <strong className="uppercase">{exam?.computedStatus}</strong></span>
               {exam?.startTime && (
-                <span>Started: <strong>{new Date(exam.startTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</strong></span>
+                <span>Started: <strong>{formatExamTime(exam.startTime)}</strong></span>
               )}
               {exam?.endTime && (
-                <span>Ends: <strong>{new Date(exam.endTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</strong></span>
+                <span>Ends: <strong>{formatExamTime(exam.endTime)}</strong></span>
               )}
             </div>
           </div>

@@ -7,6 +7,7 @@ import { Button } from '../components/ui/Button';
 import { Badge } from '../components/ui/Badge';
 import { AIPreparationCard } from '../components/ai/AIPreparationCard';
 import { examService } from '../services/examService';
+import { formatExamDateTime, formatExamDate } from '../utils/dateUtils';
 import { useAuth } from '../context/AuthContext';
 import {
   Calendar,
@@ -137,7 +138,7 @@ export const StudentDashboard = () => {
                           </p>
                         </div>
                         <div className="flex items-center gap-3">
-                          <Badge variant="warning">Starts: {new Date(exam.startTime).toLocaleString()}</Badge>
+                          <Badge variant="warning">Starts: {formatExamDateTime(exam.startTime)}</Badge>
                         </div>
                       </div>
                     );
@@ -196,7 +197,7 @@ export const StudentDashboard = () => {
                         <div>
                           <h4 className="text-sm font-bold text-[var(--text-primary)]">{exam.title}</h4>
                           <p className="text-xs text-[var(--text-secondary)] mt-0.5">
-                            {exam.courseId?.code} • Submitted: {new Date(attempt.submittedAt).toLocaleDateString()}
+                            {exam.courseId?.code} • Submitted: {formatExamDate(attempt.submittedAt)}
                           </p>
                         </div>
                         <div className="flex items-center gap-3">

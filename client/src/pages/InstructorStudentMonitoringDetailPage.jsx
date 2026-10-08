@@ -5,6 +5,7 @@ import { Card } from '../components/ui/Card';
 import { Button } from '../components/ui/Button';
 import { Badge } from '../components/ui/Badge';
 import { examMonitoringService } from '../services/examMonitoringService';
+import { formatExamDateTime, formatExamTime } from '../utils/dateUtils';
 import {
   ArrowLeft,
   ShieldAlert,
@@ -224,10 +225,10 @@ export const InstructorStudentMonitoringDetailPage = () => {
                 <div className="text-xs text-[var(--text-secondary)] flex flex-wrap gap-x-4 gap-y-1 pt-2 border-t border-[var(--border-subtle)]">
                   <span>Attempt Status: <strong className="uppercase text-[var(--text-primary)]">{data?.status || 'NOT_STARTED'}</strong></span>
                   {attempt?.startedAt && (
-                    <span>Started At: <strong>{new Date(attempt.startedAt).toLocaleString()}</strong></span>
+                    <span>Started At: <strong>{formatExamDateTime(attempt.startedAt)}</strong></span>
                   )}
                   {attempt?.submittedAt && (
-                    <span>Submitted At: <strong>{new Date(attempt.submittedAt).toLocaleString()}</strong></span>
+                    <span>Submitted At: <strong>{formatExamDateTime(attempt.submittedAt)}</strong></span>
                   )}
                 </div>
               </div>
@@ -318,7 +319,7 @@ export const InstructorStudentMonitoringDetailPage = () => {
                             {sig.signalType.replace(/_/g, ' ')}
                           </span>
                           <span className="font-mono text-[11px] text-[var(--text-muted)] font-semibold">
-                            {new Date(sig.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
+                            {formatExamTime(sig.timestamp)}
                           </span>
                         </div>
 

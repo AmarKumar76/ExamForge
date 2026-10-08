@@ -4,6 +4,7 @@ import { Card } from '../components/ui/Card';
 import { Button } from '../components/ui/Button';
 import { Bell, Check, CheckCircle2, AlertCircle, RefreshCw } from 'lucide-react';
 import { examService } from '../services/examService';
+import { formatExamDateTime } from '../utils/dateUtils';
 import { useNavigate } from 'react-router-dom';
 
 export const StudentNotificationsPage = () => {
@@ -82,7 +83,7 @@ export const StudentNotificationsPage = () => {
                    <div className="flex-1">
                      <h4 className={`text-sm font-bold ${n.read ? 'text-[var(--text-primary)]' : 'text-[var(--primary)]'}`}>{n.title}</h4>
                      <p className="text-xs text-[var(--text-secondary)] mt-1">{n.message}</p>
-                     <span className="text-[10px] text-[var(--text-secondary)] mt-2 block">{new Date(n.createdAt).toLocaleString()}</span>
+                     <span className="text-[10px] text-[var(--text-secondary)] mt-2 block">{formatExamDateTime(n.createdAt)}</span>
                    </div>
                    {!n.read && <div className="w-2 h-2 rounded-full bg-[var(--primary)] shrink-0 mt-2"></div>}
                 </div>

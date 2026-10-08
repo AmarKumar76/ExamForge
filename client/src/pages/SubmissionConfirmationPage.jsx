@@ -2,6 +2,7 @@ import React from 'react';
 import { CheckCircle2, ArrowLeft } from 'lucide-react';
 import { Button } from '../components/ui/Button';
 import { useNavigate, useLocation } from 'react-router-dom';
+import { formatExamDateTime } from '../utils/dateUtils';
 
 export const SubmissionConfirmationPage = () => {
   const navigate = useNavigate();
@@ -24,7 +25,7 @@ export const SubmissionConfirmationPage = () => {
         <div className="p-4 bg-[var(--background)] rounded-[var(--radius-md)] border border-[var(--border-subtle)] space-y-2 text-xs text-left">
           <div className="flex justify-between"><span className="text-[var(--text-secondary)]">Exam:</span> <span className="font-bold text-[var(--text-primary)]">{exam?.title || 'Unknown Exam'}</span></div>
           {exam?.courseId && <div className="flex justify-between"><span className="text-[var(--text-secondary)]">Course:</span> <span className="font-bold text-[var(--text-primary)]">{exam?.courseId?.code || exam.courseId}</span></div>}
-          <div className="flex justify-between"><span className="text-[var(--text-secondary)]">Submission Time:</span> <span className="font-bold">{attempt?.submittedAt ? new Date(attempt.submittedAt).toLocaleString() : new Date().toLocaleString()}</span></div>
+          <div className="flex justify-between"><span className="text-[var(--text-secondary)]">Submission Time:</span> <span className="font-bold">{formatExamDateTime(attempt?.submittedAt || new Date())}</span></div>
         </div>
 
         <Button variant="primary" size="md" className="w-full" icon={ArrowLeft} onClick={() => navigate('/student/dashboard')}>

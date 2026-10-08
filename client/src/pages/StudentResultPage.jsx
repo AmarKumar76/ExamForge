@@ -5,6 +5,7 @@ import { Button } from '../components/ui/Button';
 import { Badge } from '../components/ui/Badge';
 import { Card } from '../components/ui/Card';
 import { examService } from '../services/examService';
+import { formatExamDateTime } from '../utils/dateUtils';
 import {
   Award,
   CheckCircle2,

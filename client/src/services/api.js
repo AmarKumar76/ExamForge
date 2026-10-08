@@ -34,7 +34,7 @@ export const request = async (endpoint, options = {}) => {
       data = await response.json();
     } else {
       const rawText = await response.text();
-      const error = new Error(`Backend server returned non-JSON response (${response.status}). Please ensure the ExamForge API server is running on port 5000.`);
+      const error = new Error(`Backend server returned non-JSON response (${response.status}). Please ensure the ExamForge API server is running and accessible.`);
       error.status = response.status;
       error.code = 'NON_JSON_RESPONSE';
       error.rawText = rawText;
@@ -52,7 +52,7 @@ export const request = async (endpoint, options = {}) => {
     return data;
   } catch (error) {
     if (error.name === 'TypeError' && error.message.includes('fetch')) {
-      const networkError = new Error('Unable to connect to the ExamForge API server. Please ensure the backend server is running on http://localhost:5000.');
+      const networkError = new Error('Unable to connect to the ExamForge API server. Please ensure the backend server is active and accessible.');
       networkError.code = 'NETWORK_ERROR';
       throw networkError;
     }
