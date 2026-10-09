@@ -20,18 +20,18 @@ describe('Student Provisioning & Welcome Email Flow Suite', () => {
 
   afterAll(async () => {
     if (mongoose.connection.readyState === 1) {
-      await User.deleteMany({});
+      await User.deleteMany({ email: { $in: ['amar766730@gmail.com'], $regex: /@provtest\.org$/ } });
       await Institution.deleteMany({ code: /^PROV-/ });
-      await Notification.deleteMany({});
+      await Notification.deleteMany({ recipientEmail: /@(provtest\.org|gmail\.com)$/ });
     }
     await disconnectDB();
   });
 
   beforeEach(async () => {
     if (mongoose.connection.readyState === 1) {
-      await User.deleteMany({});
+      await User.deleteMany({ email: { $in: ['amar766730@gmail.com'], $regex: /@provtest\.org$/ } });
       await Institution.deleteMany({ code: /^PROV-/ });
-      await Notification.deleteMany({});
+      await Notification.deleteMany({ recipientEmail: /@(provtest\.org|gmail\.com)$/ });
 
       testInst = await Institution.create({
         name: 'Provisioning Test Institution',

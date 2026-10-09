@@ -11,8 +11,9 @@ const isTestEnv = process.env.NODE_ENV === 'test' || process.env.JEST_WORKER_ID 
 let selectedMongoUri;
 if (isTestEnv) {
   selectedMongoUri = process.env.MONGO_URI_TEST || process.env.TEST_MONGO_URI;
-  if (!selectedMongoUri && process.env.MONGO_URI) {
-    selectedMongoUri = process.env.MONGO_URI.replace(/\/examforge(\?|$)/i, '/examforge_test$1');
+  if (!selectedMongoUri && (process.env.MONGO_URI || process.env.MONGODB_URI)) {
+    const rawUri = process.env.MONGO_URI || process.env.MONGODB_URI;
+    selectedMongoUri = rawUri.replace(/\/examforge(\?|$)/i, '/examforge_test$1');
   }
   if (!selectedMongoUri) {
     selectedMongoUri = 'mongodb://127.0.0.1:27017/examforge_test';

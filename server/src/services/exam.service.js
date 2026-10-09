@@ -382,12 +382,12 @@ class ExamService {
       result.push({
         student: att.studentId
           ? {
-              _id: att.studentId._id,
-              name: att.studentId.name,
-              email: att.studentId.email,
-              rollNumber: att.studentId.rollNumber,
-              status: att.studentId.status,
-            }
+            _id: att.studentId._id,
+            name: att.studentId.name,
+            email: att.studentId.email,
+            rollNumber: att.studentId.rollNumber,
+            status: att.studentId.status,
+          }
           : { _id: null, name: 'Unknown Student', email: '', rollNumber: '', status: '' },
         attempt: att,
       });
@@ -1075,13 +1075,13 @@ class ExamService {
     // Note: Future exams (SCHEDULED) are kept visible so they can be displayed as "Upcoming"
     const validExams = exams.filter(e => {
       if (e.institutionId && user.institutionId && e.institutionId.toString() !== user.institutionId.toString()) return false;
-      
+
       const hasAttempt = attempts.some(a => a.examId.toString() === e._id.toString());
       if (hasAttempt) return true;
 
       const now = new Date();
       if (e.endTime && now > new Date(e.endTime)) return false;
-      
+
       return true;
     });
 
@@ -1093,13 +1093,13 @@ class ExamService {
 
       eObj.myAttempt = myAttempt
         ? {
-            id: myAttempt._id,
-            status: myAttempt.status,
-            totalScore: myAttempt.status === 'PUBLISHED' ? myAttempt.totalScore : undefined,
-            percentage: myAttempt.status === 'PUBLISHED' ? myAttempt.percentage : undefined,
-            passed: myAttempt.status === 'PUBLISHED' ? myAttempt.passed : undefined,
-            submittedAt: myAttempt.submittedAt,
-          }
+          id: myAttempt._id,
+          status: myAttempt.status,
+          totalScore: myAttempt.status === 'PUBLISHED' ? myAttempt.totalScore : undefined,
+          percentage: myAttempt.status === 'PUBLISHED' ? myAttempt.percentage : undefined,
+          passed: myAttempt.status === 'PUBLISHED' ? myAttempt.passed : undefined,
+          submittedAt: myAttempt.submittedAt,
+        }
         : null;
 
       return eObj;
@@ -1486,7 +1486,13 @@ class ExamService {
       ExamAttempt.countDocuments({ courseId: { $in: courseIds }, status: 'PUBLISHED' }),
     ]);
 
-    const totalStudents = assignedCourses.reduce((acc, curr) => acc + (curr.studentIds ? curr.studentIds.length : 0), 0);
+    // Use a Set to count unique students across all courses.
+    // The previous reduce summed .length per course, double-counting
+    // students who are enrolled in more than one of the instructor's courses.
+    const uniqueStudentIds = new Set(
+      assignedCourses.flatMap((c) => (c.studentIds || []).map((id) => id.toString()))
+    );
+    const totalStudents = uniqueStudentIds.size;
     const scoreSum = attempts.reduce((acc, curr) => acc + (curr.totalScore || 0), 0);
     const averageScore = attempts.length > 0 ? (scoreSum / attempts.length).toFixed(1) : 0;
 
@@ -1807,7 +1813,7 @@ class ExamService {
       error.statusCode = 403;
       throw error;
     }
-    
+
     if (attempt.status !== 'GRADED' && attempt.status !== 'SUBMITTED') {
       const error = new Error('Attempt must be graded before publishing.');
       error.statusCode = 400;
@@ -1848,7 +1854,7 @@ class ExamService {
   async recordIntegritySignal(attemptId, signalType, metadata = {}, user) {
     const attempt = await ExamAttempt.findById(attemptId);
     if (!attempt) return null;
-    
+
     if (attempt.studentId.toString() !== user._id.toString()) return null;
     if (attempt.status !== 'IN_PROGRESS') return null;
 
@@ -2023,11 +2029,11 @@ class ExamService {
         courseName: att.courseId?.name || '',
         student: att.studentId
           ? {
-              id: att.studentId._id,
-              name: att.studentId.name,
-              email: att.studentId.email,
-              rollNumber: att.studentId.rollNumber || '',
-            }
+            id: att.studentId._id,
+            name: att.studentId.name,
+            email: att.studentId.email,
+            rollNumber: att.studentId.rollNumber || '',
+          }
           : { name: 'Student' },
         status: att.status,
         score: att.totalScore || 0,

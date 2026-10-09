@@ -342,8 +342,13 @@ class CourseService {
       throw error;
     }
 
-    // Add student if not already enrolled
-    if (!course.studentIds.includes(studentUser._id)) {
+    // Add student if not already enrolled.
+    // NOTE: .includes() uses reference equality and always returns false for
+    // Mongoose ObjectId objects. Use .some() with .toString() for value equality.
+    const alreadyEnrolled = course.studentIds.some(
+      (id) => id.toString() === studentUser._id.toString()
+    );
+    if (!alreadyEnrolled) {
       course.studentIds.push(studentUser._id);
       await course.save();
     }

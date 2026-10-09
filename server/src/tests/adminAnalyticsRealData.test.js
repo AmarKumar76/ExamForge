@@ -21,19 +21,20 @@ describe('Admin Analytics Real-Data Counts & Dynamic Auto-Refresh Test Suite', (
 
   afterAll(async () => {
     if (mongoose.connection.readyState === 1) {
-      await User.deleteMany({});
+      await User.deleteMany({ email: { $in: ['amar766730@gmail.com'], $regex: /@analyticstest\.org$/ } });
       await Course.deleteMany({ code: /^ANALYTICS-/ });
       await Institution.deleteMany({ code: /^ANALYTICS-/ });
-      await SystemLog.deleteMany({});
+      await SystemLog.deleteMany({ action: /^ANALYTICS_/ });
     }
     await disconnectDB();
   });
 
   beforeEach(async () => {
-    await User.deleteMany({});
-    await Course.deleteMany({ code: /^ANALYTICS-/ });
-    await Institution.deleteMany({ code: /^ANALYTICS-/ });
-    await SystemLog.deleteMany({});
+    if (mongoose.connection.readyState === 1) {
+      await User.deleteMany({ email: { $in: ['amar766730@gmail.com'], $regex: /@analyticstest\.org$/ } });
+      await Course.deleteMany({ code: /^ANALYTICS-/ });
+      await Institution.deleteMany({ code: /^ANALYTICS-/ });
+      await SystemLog.deleteMany({ action: /^ANALYTICS_/ });
 
       testInst = await Institution.create({
         name: 'Analytics Test Institution',

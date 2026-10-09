@@ -23,10 +23,10 @@ describe('Authentication, Email Notifications & Database Verification Suite', ()
 
   afterAll(async () => {
     if (mongoose.connection.readyState === 1) {
-      await User.deleteMany({ email: { $in: ['amar766730@gmail.com', /@email-test\.org$/] } });
+      await User.deleteMany({ email: { $in: ['amar766730@gmail.com'], $regex: /@email-test\.org$/ } });
       await Course.deleteMany({ code: /^EFLOW-/ });
       await Institution.deleteMany({ code: /^EFLOW-/ });
-      await Notification.deleteMany({});
+      await Notification.deleteMany({ recipientEmail: /@(email-test\.org|gmail\.com)$/ });
     }
     await disconnectDB();
   });
@@ -34,10 +34,10 @@ describe('Authentication, Email Notifications & Database Verification Suite', ()
   beforeEach(async () => {
     if (mongoose.connection.readyState === 1) {
       // Clean test namespace records
-      await User.deleteMany({ email: { $in: ['amar766730@gmail.com', /@email-test\.org$/] } });
+      await User.deleteMany({ email: { $in: ['amar766730@gmail.com'], $regex: /@email-test\.org$/ } });
       await Course.deleteMany({ code: /^EFLOW-/ });
       await Institution.deleteMany({ code: /^EFLOW-/ });
-      await Notification.deleteMany({});
+      await Notification.deleteMany({ recipientEmail: /@(email-test\.org|gmail\.com)$/ });
 
       testInst = await Institution.create({
         name: 'Email Test Institution',
