@@ -150,8 +150,8 @@ export const InstructorResultsPage = () => {
     <AppShell title="Results Management">
       <div className="space-y-6 pb-12">
         {/* Confirmation Modal */}
-        <ConfirmModalDialog 
-          isOpen={!!confirmModal} 
+        <ConfirmModalDialog
+          isOpen={!!confirmModal}
           message={confirmModal?.message}
           onConfirm={confirmModal?.onConfirm}
           onCancel={() => setConfirmModal(null)}

@@ -8,7 +8,7 @@ export const FeedbackBanner = ({ type, message, onClose }) => {
 
   return (
     <div className={`p-3.5 rounded-xl border text-xs font-semibold flex items-center justify-between transition-all animate-in fade-in slide-in-from-top-2 duration-300 ${
-      isSuccess 
+      isSuccess
         ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-700 dark:text-emerald-400'
         : 'bg-red-500/10 border-red-500/20 text-red-600 dark:text-red-400'
     }`}>

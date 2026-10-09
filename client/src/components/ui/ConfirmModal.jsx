@@ -17,7 +17,7 @@ export const ConfirmModal = ({ isOpen, message, onConfirm, onCancel, title = "Co
 
   return (
     <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-[100] p-4 backdrop-blur-xs animate-in fade-in duration-200" onClick={showCancel ? onCancel : undefined}>
-      <div 
+      <div
         className="bg-[var(--surface)] p-6 rounded-2xl max-w-sm w-full shadow-2xl border border-[var(--border)] space-y-4 animate-in zoom-in-95 duration-200"
         onClick={(e) => e.stopPropagation()}
       >

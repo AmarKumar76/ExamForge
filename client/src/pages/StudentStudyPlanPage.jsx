@@ -303,8 +303,8 @@ export const StudentStudyPlanPage = () => {
   return (
     <AppShell title="Study Plan">
       <div className="space-y-8 max-w-6xl mx-auto pb-16">
-        <ConfirmModalDialog 
-          isOpen={!!confirmModal} 
+        <ConfirmModalDialog
+          isOpen={!!confirmModal}
           message={confirmModal?.message}
           onConfirm={confirmModal?.onConfirm}
           onCancel={() => setConfirmModal(null)}
