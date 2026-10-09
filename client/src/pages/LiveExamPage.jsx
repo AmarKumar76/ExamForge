@@ -3,6 +3,7 @@ import { useLocation, useNavigate, useSearchParams } from 'react-router-dom';
 import { Button } from '../components/ui/Button';
 import { Badge } from '../components/ui/Badge';
 import { examService } from '../services/examService';
+import { ConfirmModal } from '../components/ui/ConfirmModal';
 import { SecureExamPreCheck } from '../components/exam/SecureExamPreCheck';
 import { FaceProctor } from '../components/exam/FaceProctor';
 import {
@@ -45,6 +46,7 @@ export const LiveExamPage = () => {
   const [timeLeft, setTimeLeft] = useState(null);
   
   const [isConnectionLost, setIsConnectionLost] = useState(false);
+  const [alertModal, setAlertModal] = useState(null);
 
   // Resume or start session
   useEffect(() => {
@@ -142,7 +144,10 @@ export const LiveExamPage = () => {
     const onFullscreenChange = () => {
       if (!document.fullscreenElement) {
         sendSignal('FULLSCREEN_EXIT');
-        alert("Warning: Fullscreen mode was exited. Please return to fullscreen. Your actions are being recorded.");
+        setAlertModal({
+          message: "Warning: Fullscreen mode was exited. Please return to fullscreen. Your actions are being recorded.",
+          onConfirm: () => setAlertModal(null)
+        });
       }
     };
     
@@ -238,8 +243,13 @@ export const LiveExamPage = () => {
   };
 
   const handleAutoSubmit = () => {
-    alert("Exam time has ended. Your attempt was submitted automatically.");
-    executeSubmit();
+    setAlertModal({
+      message: "Exam time has ended. Your attempt was submitted automatically.",
+      onConfirm: () => {
+        setAlertModal(null);
+        executeSubmit();
+      }
+    });
   };
 
   const executeSubmit = async () => {

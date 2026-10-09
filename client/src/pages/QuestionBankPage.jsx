@@ -61,6 +61,7 @@ export const QuestionBankPage = () => {
   // Move Modal State
   const [moveModalQuestionId, setMoveModalQuestionId] = useState(null); // single question or 'BULK'
   const [targetMoveFolderId, setTargetMoveFolderId] = useState('uncategorized');
+  const [confirmModal, setConfirmModal] = useState(null);
 
   // Edit Question Modal State
   const [editingQuestion, setEditingQuestion] = useState(null);
@@ -203,21 +204,24 @@ export const QuestionBankPage = () => {
     }
   };
 
-  const handleDeleteFolder = async (folder) => {
-    if (!window.confirm(`Are you sure you want to delete folder "${folder.title}"? Questions in this folder will be moved to Unassigned Questions.`)) {
-      return;
-    }
-    try {
-      setError(null);
-      await folderService.deleteFolder(folder.id || folder._id);
-      setSuccess(`Folder "${folder.title}" deleted.`);
-      if (selectedFolderId === (folder.id || folder._id)) {
-        setSelectedFolderId('ALL');
+  const handleDeleteFolder = (folder) => {
+    setConfirmModal({
+      message: `Are you sure you want to delete folder "${folder.title}"? Questions in this folder will be moved to Unassigned Questions.`,
+      onConfirm: async () => {
+        setConfirmModal(null);
+        try {
+          setError(null);
+          await folderService.deleteFolder(folder.id || folder._id);
+          setSuccess(`Folder "${folder.title}" deleted.`);
+          if (selectedFolderId === (folder.id || folder._id)) {
+            setSelectedFolderId('ALL');
+          }
+          await loadFoldersAndQuestions(selectedCourseId);
+        } catch (err) {
+          setError(err.message || 'Failed to delete folder.');
+        }
       }
-      await loadFoldersAndQuestions(selectedCourseId);
-    } catch (err) {
-      setError(err.message || 'Failed to delete folder.');
-    }
+    });
   };
 
   // Move Question Handlers

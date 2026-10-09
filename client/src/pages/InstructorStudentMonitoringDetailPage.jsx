@@ -17,9 +17,9 @@ import {
   Camera,
   MessageSquare,
   AlertCircle,
-  RefreshCw,
   Check,
   Send,
+  X,
 } from 'lucide-react';
 
 export const InstructorStudentMonitoringDetailPage = () => {
@@ -35,6 +35,7 @@ export const InstructorStudentMonitoringDetailPage = () => {
   const [isSavingNote, setIsSavingNote] = useState(false);
   const [isUpdatingStatus, setIsUpdatingStatus] = useState(false);
   const [actionSuccess, setActionSuccess] = useState(null);
+  const [actionError, setActionError] = useState(null);
 
   const fetchStudentMonitoringDetail = async () => {
     try {
@@ -72,7 +73,7 @@ export const InstructorStudentMonitoringDetailPage = () => {
         setTimeout(() => setActionSuccess(null), 3000);
       }
     } catch (err) {
-      alert(err.message || 'Failed to save instructor note.');
+      setActionError(err.message || 'Failed to save instructor note.');
     } finally {
       setIsSavingNote(false);
     }
@@ -92,7 +93,7 @@ export const InstructorStudentMonitoringDetailPage = () => {
         setTimeout(() => setActionSuccess(null), 3000);
       }
     } catch (err) {
-      alert(err.message || 'Failed to update review status.');
+      setActionError(err.message || 'Failed to update review status.');
     } finally {
       setIsUpdatingStatus(false);
     }
@@ -165,16 +166,32 @@ export const InstructorStudentMonitoringDetailPage = () => {
         </div>
 
         {actionSuccess && (
-          <div className="p-4 bg-emerald-500/10 border border-emerald-500/20 text-emerald-700 dark:text-emerald-400 rounded-xl text-xs font-semibold flex items-center gap-2">
-            <CheckCircle2 className="w-4 h-4" />
-            <span>{actionSuccess}</span>
+          <div className="p-3.5 bg-emerald-500/10 border border-emerald-500/20 text-emerald-700 dark:text-emerald-400 rounded-xl text-xs font-semibold flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <CheckCircle2 className="w-4 h-4" />
+              <span>{actionSuccess}</span>
+            </div>
+            <button onClick={() => setActionSuccess(null)} className="cursor-pointer"><X className="w-4 h-4" /></button>
+          </div>
+        )}
+
+        {actionError && (
+          <div className="p-3.5 bg-red-500/10 border border-red-500/20 text-red-600 dark:text-red-400 rounded-xl text-xs font-semibold flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <AlertCircle className="w-4 h-4" />
+              <span>{actionError}</span>
+            </div>
+            <button onClick={() => setActionError(null)} className="cursor-pointer"><X className="w-4 h-4" /></button>
           </div>
         )}
 
         {error && (
-          <div className="p-4 bg-red-500/10 border border-red-500/20 text-red-600 rounded-xl text-xs font-semibold flex items-center gap-2">
-            <AlertCircle className="w-4 h-4" />
-            <span>{error}</span>
+          <div className="p-3.5 bg-red-500/10 border border-red-500/20 text-red-600 dark:text-red-400 rounded-xl text-xs font-semibold flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <AlertCircle className="w-4 h-4" />
+              <span>{error}</span>
+            </div>
+            <button onClick={() => setError(null)} className="cursor-pointer"><X className="w-4 h-4" /></button>
           </div>
         )}
 

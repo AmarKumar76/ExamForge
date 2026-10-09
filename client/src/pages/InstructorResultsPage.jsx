@@ -3,8 +3,10 @@ import { AppShell } from '../components/layout/AppShell';
 import { Card } from '../components/ui/Card';
 import { Button } from '../components/ui/Button';
 import { Badge } from '../components/ui/Badge';
+import { FeedbackBanner } from '../components/ui/FeedbackBanner';
+import { ConfirmModal as ConfirmModalDialog } from '../components/ui/ConfirmModal';
 import { examService } from '../services/examService';
-import { RefreshCw, AlertCircle, FileText, CheckCircle2, Search, ArrowRight, ShieldAlert, Check } from 'lucide-react';
+import { RefreshCw, AlertCircle, FileText, CheckCircle2, ArrowRight, ShieldAlert, Check, X } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 
 export const InstructorResultsPage = () => {
@@ -16,6 +18,10 @@ export const InstructorResultsPage = () => {
   const [isLoading, setIsLoading] = useState(true);
   const [isAttemptsLoading, setIsAttemptsLoading] = useState(false);
   const [error, setError] = useState(null);
+  const [success, setSuccess] = useState(null);
+
+  // Confirmation modal state
+  const [confirmModal, setConfirmModal] = useState(null); // { message, onConfirm }
 
   const [selectedAttempts, setSelectedAttempts] = useState([]);
 
@@ -39,6 +45,8 @@ export const InstructorResultsPage = () => {
   const handleSelectExam = async (exam) => {
     setSelectedExam(exam);
     setSelectedAttempts([]);
+    setSuccess(null);
+    setError(null);
     try {
       setIsAttemptsLoading(true);
       const res = await examService.getInstructorExamAttempts(exam._id || exam.id);
@@ -46,44 +54,65 @@ export const InstructorResultsPage = () => {
         setAttempts(res.data);
       }
     } catch (err) {
-      console.error(err);
-      alert('Failed to load exam attempts.');
+      setError(err.message || 'Failed to load exam attempts.');
     } finally {
       setIsAttemptsLoading(false);
     }
   };
 
-  const handlePublish = async (attemptId) => {
-    if (!window.confirm('Are you sure you want to release this result to the student?')) return;
-    try {
-      const res = await examService.publishResult(attemptId);
-      if (res.success) {
-        setAttempts(attempts.map(a => a.attempt && (a.attempt._id === attemptId || a.attempt.id === attemptId) ? { ...a, attempt: { ...a.attempt, status: 'PUBLISHED' } } : a));
-      }
-    } catch (err) {
-      console.error(err);
-      alert('Failed to publish result.');
-    }
+  const handlePublish = (attemptId) => {
+    setConfirmModal({
+      message: 'Release this result to the student?',
+      onConfirm: async () => {
+        setConfirmModal(null);
+        try {
+          const res = await examService.publishResult(attemptId);
+          if (res.success) {
+            setAttempts((prev) =>
+              prev.map((a) =>
+                a.attempt && (a.attempt._id === attemptId || a.attempt.id === attemptId)
+                  ? { ...a, attempt: { ...a.attempt, status: 'PUBLISHED' } }
+                  : a
+              )
+            );
+            setSuccess('Result released to student successfully.');
+          }
+        } catch (err) {
+          setError(err.message || 'Failed to publish result.');
+        }
+      },
+    });
   };
 
-  const handleBulkPublish = async () => {
-    if (!window.confirm(`Release results for ${selectedAttempts.length} students?`)) return;
-
-    let successCount = 0;
-    for (const id of selectedAttempts) {
-      try {
-        await examService.publishResult(id);
-        successCount++;
-      } catch (err) {
-        console.error('Failed to publish', id, err);
-      }
-    }
-
-    if (successCount > 0) {
-      setAttempts(attempts.map(a => a.attempt && selectedAttempts.includes(a.attempt._id || a.attempt.id) ? { ...a, attempt: { ...a.attempt, status: 'PUBLISHED' } } : a));
-      setSelectedAttempts([]);
-      alert(`Successfully released ${successCount} results.`);
-    }
+  const handleBulkPublish = () => {
+    const count = selectedAttempts.length;
+    setConfirmModal({
+      message: `Release results for ${count} student${count !== 1 ? 's' : ''}?`,
+      onConfirm: async () => {
+        setConfirmModal(null);
+        let successCount = 0;
+        const ids = [...selectedAttempts];
+        for (const id of ids) {
+          try {
+            await examService.publishResult(id);
+            successCount++;
+          } catch (err) {
+            console.error('Failed to publish', id, err);
+          }
+        }
+        if (successCount > 0) {
+          setAttempts((prev) =>
+            prev.map((a) =>
+              a.attempt && ids.includes(a.attempt._id || a.attempt.id)
+                ? { ...a, attempt: { ...a.attempt, status: 'PUBLISHED' } }
+                : a
+            )
+          );
+          setSelectedAttempts([]);
+          setSuccess(`Successfully released ${successCount} result${successCount !== 1 ? 's' : ''}.`);
+        }
+      },
+    });
   };
 
   const toggleSelect = (id) => {
@@ -120,6 +149,15 @@ export const InstructorResultsPage = () => {
   return (
     <AppShell title="Results Management">
       <div className="space-y-6 pb-12">
+        {/* Confirmation Modal */}
+        <ConfirmModalDialog 
+          isOpen={!!confirmModal} 
+          message={confirmModal?.message}
+          onConfirm={confirmModal?.onConfirm}
+          onCancel={() => setConfirmModal(null)}
+          title="Publish Results"
+        />
+
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div>
             <h1 className="text-2xl font-bold text-[var(--text-primary)]">Exam Results Review</h1>
@@ -132,12 +170,8 @@ export const InstructorResultsPage = () => {
           )}
         </div>
 
-        {error && (
-          <div className="p-4 bg-red-500/10 border border-red-500/20 text-red-600 rounded-xl text-xs font-semibold flex items-center gap-2">
-            <AlertCircle className="w-4 h-4" />
-            {error}
-          </div>
-        )}
+        <FeedbackBanner type="success" message={success} onClose={() => setSuccess(null)} />
+        <FeedbackBanner type="error" message={error} onClose={() => setError(null)} />
 
         {!selectedExam ? (
           <Card title="Select an Exam">
@@ -417,8 +451,9 @@ export const InstructorResultsPage = () => {
                                   integritySummary: { ...(reviewAttempt.attempt.integritySummary || {}), reviewStatus: 'REVIEWED' },
                                 },
                               });
+                              setSuccess('Review status marked as REVIEWED.');
                             } catch (e) {
-                              alert('Failed to update status.');
+                              setError('Failed to update review status.');
                             }
                           }}
                         >
@@ -438,8 +473,9 @@ export const InstructorResultsPage = () => {
                                   integritySummary: { ...(reviewAttempt.attempt.integritySummary || {}), reviewStatus: 'FLAGGED' },
                                 },
                               });
+                              setSuccess('Attempt flagged for further review.');
                             } catch (e) {
-                              alert('Failed to flag attempt.');
+                              setError('Failed to flag attempt.');
                             }
                           }}
                         >

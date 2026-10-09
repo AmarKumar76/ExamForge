@@ -53,6 +53,7 @@ export const AdminInstitutionDetailPage = () => {
   const [showEnrollModal, setShowEnrollModal] = useState(false);
   const [selectedInstIds, setSelectedInstIds] = useState([]);
   const [selectedStudentIds, setSelectedStudentIds] = useState([]);
+  const [enrollModalError, setEnrollModalError] = useState(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const loadData = async () => {
@@ -64,7 +65,7 @@ export const AdminInstitutionDetailPage = () => {
         institutionService.getById(institutionId).catch(() => null),
         courseService.getAll({ institutionId }).catch(() => ({ success: false, data: { courses: [] } })),
         userService.getAll({ role: 'INSTRUCTOR' }).catch(() => ({ success: false, data: { users: [] } })),
-        userService.getAll({ role: 'STUDENT' }).catch(() => ({ success: false, data: { users: [] } })),
+        userService.getAll({ role: 'STUDENT', institutionId }).catch(() => ({ success: false, data: { users: [] } })),
         userService.getAll().catch(() => ({ success: false, data: { users: [] } })),
       ]);
 
@@ -183,11 +184,11 @@ export const AdminInstitutionDetailPage = () => {
 
     try {
       setIsSubmitting(true);
-      setError(null);
+      setEnrollModalError(null);
       const courseId = (selectedCourse.id || selectedCourse._id)?.toString();
-      const cleanStudentIds = selectedStudentIds
+      const cleanStudentIds = [...new Set(selectedStudentIds
         .map((item) => (typeof item === 'string' ? item : (item.id || item._id)?.toString()))
-        .filter(Boolean);
+        .filter(Boolean))];
       const res = await courseService.manageStudents(courseId, cleanStudentIds, 'set');
       if (res.success) {
         setSuccess(`Student enrollments updated for course ${selectedCourse.code}.`);
@@ -196,7 +197,7 @@ export const AdminInstitutionDetailPage = () => {
         await loadData();
       }
     } catch (err) {
-      setError(err.message || 'Failed to update enrolled students.');
+      setEnrollModalError(err.message || 'Failed to update enrolled students.');
     } finally {
       setIsSubmitting(false);
     }
@@ -456,10 +457,12 @@ export const AdminInstitutionDetailPage = () => {
                           icon={GraduationCap}
                           onClick={() => {
                             setSelectedCourse(c);
+                            setEnrollModalError(null);
+                            const validStudSet = new Set((students || []).map((s) => (s.id || s._id)?.toString()).filter(Boolean));
                             const initialStudIds = (c.studentIds || [])
                               .map((s) => (typeof s === 'string' ? s : (s.id || s._id)?.toString()))
-                              .filter(Boolean);
-                            setSelectedStudentIds(initialStudIds);
+                              .filter((id) => Boolean(id) && validStudSet.has(id));
+                            setSelectedStudentIds([...new Set(initialStudIds)]);
                             setShowEnrollModal(true);
                           }}
                         >
@@ -634,10 +637,22 @@ export const AdminInstitutionDetailPage = () => {
                 </button>
               </div>
 
+              {enrollModalError && (
+                <div className="p-3 bg-red-500/10 border border-red-500/20 text-red-600 dark:text-red-400 rounded-xl text-xs font-semibold flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <AlertCircle className="w-4 h-4 shrink-0" />
+                    <span>{enrollModalError}</span>
+                  </div>
+                  <button type="button" onClick={() => setEnrollModalError(null)} className="cursor-pointer">
+                    <X className="w-4 h-4" />
+                  </button>
+                </div>
+              )}
+
               <form onSubmit={handleEnrollStudentsSubmit} className="space-y-4 text-xs">
                 <div className="space-y-2 max-h-60 overflow-y-auto pr-1">
                   {students.length === 0 ? (
-                    <p className="text-[11px] text-[var(--text-muted)] italic">No student accounts registered in system.</p>
+                    <p className="text-[11px] text-[var(--text-muted)] italic">No student accounts registered for this institution.</p>
                   ) : (
                     students.map((stud) => {
                       const studId = (stud.id || stud._id)?.toString();

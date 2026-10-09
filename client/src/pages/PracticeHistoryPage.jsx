@@ -6,11 +6,13 @@ import { Button } from '../components/ui/Button';
 import { Target, Search, RefreshCw, ArrowRight } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { examService } from '../services/examService';
+import { ConfirmModal } from '../components/ui/ConfirmModal';
 
 export const PracticeHistoryPage = () => {
   const navigate = useNavigate();
   const [history, setHistory] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [infoMessage, setInfoMessage] = useState(null);
 
   useEffect(() => {
     const fetchHistory = async () => {
@@ -32,6 +34,13 @@ export const PracticeHistoryPage = () => {
   return (
     <AppShell title="Practice History">
       <div className="space-y-6 max-w-5xl mx-auto">
+        <ConfirmModal
+          isOpen={!!infoMessage}
+          title="Practice Detailed View"
+          message={infoMessage || ''}
+          onConfirm={() => setInfoMessage(null)}
+          showCancel={false}
+        />
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div>
             <h1 className="text-2xl font-bold text-[var(--text-primary)]">Practice History</h1>
@@ -76,7 +85,7 @@ export const PracticeHistoryPage = () => {
                    </div>
                    <div className="text-right">
                      <span className="text-xs text-[var(--text-secondary)] block mb-2">{new Date(item.createdAt).toLocaleDateString()}</span>
-                     <Button variant="outline" size="sm" icon={ArrowRight} onClick={() => alert("Practice detailed view coming soon.")}>
+                     <Button variant="outline" size="sm" icon={ArrowRight} onClick={() => setInfoMessage("Practice detailed view coming soon.")}>
                        View Result
                      </Button>
                    </div>

@@ -3,6 +3,7 @@ import { AppShell } from '../components/layout/AppShell';
 import { Card } from '../components/ui/Card';
 import { Badge } from '../components/ui/Badge';
 import { Button } from '../components/ui/Button';
+import { FeedbackBanner } from '../components/ui/FeedbackBanner';
 import { examService } from '../services/examService';
 import {
   ShieldAlert,
@@ -20,12 +21,14 @@ import {
   Check,
   AlertCircle,
   FileCheck,
+  X
 } from 'lucide-react';
 
 export const ProctoringDashboardPage = () => {
   const [data, setData] = useState({ stats: {}, exams: [], attempts: [] });
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [success, setSuccess] = useState(null);
 
   // Filters state
   const [filterExamId, setFilterExamId] = useState('');
@@ -104,11 +107,12 @@ export const ProctoringDashboardPage = () => {
       if (res.success) {
         setSelectedAttempt(null);
         setAttemptDetails(null);
+        setSuccess('Review status saved successfully.');
         fetchDashboardData();
       }
     } catch (err) {
       console.error('Failed to save integrity review:', err);
-      alert('Failed to save review status.');
+      setError('Failed to save review status.');
     } finally {
       setIsSubmittingReview(false);
     }
@@ -116,19 +120,20 @@ export const ProctoringDashboardPage = () => {
 
   const handleRunSimilarityCheck = async () => {
     if (!filterExamId) {
-      return alert('Please select an exam from the filter dropdown to run a semantic similarity check.');
+      setError('Please select an exam from the filter dropdown to run a semantic similarity check.');
+      return;
     }
 
     try {
       setIsRunningSimilarity(true);
       const res = await examService.runExamSimilarityCheck(filterExamId);
       if (res.success) {
-        alert(`Similarity comparison complete! Identified ${res.data.reportsCount} potential response matches.`);
+        setSuccess(`Similarity comparison complete! Identified ${res.data.reportsCount} potential response matches.`);
         fetchDashboardData();
       }
     } catch (err) {
       console.error('Similarity check error:', err);
-      alert('Failed to run similarity check.');
+      setError('Failed to run similarity check.');
     } finally {
       setIsRunningSimilarity(false);
     }
@@ -176,7 +181,12 @@ export const ProctoringDashboardPage = () => {
               Evidence-based signal monitoring, timing analysis, semantic similarity, and instructor human review.
             </p>
           </div>
+        </div>
 
+        <FeedbackBanner type="success" message={success} onClose={() => setSuccess(null)} />
+        <FeedbackBanner type="error" message={error} onClose={() => setError(null)} />
+
+        <div className="flex flex-col sm:flex-row sm:items-center justify-end gap-4">
           <div className="flex items-center gap-2">
             <Button
               variant="outline"

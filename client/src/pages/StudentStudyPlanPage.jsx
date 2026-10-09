@@ -4,6 +4,8 @@ import { Card } from '../components/ui/Card';
 import { Button } from '../components/ui/Button';
 import { Badge } from '../components/ui/Badge';
 import { AIPlanningAssistant } from '../components/ui/AIPlanningAssistant';
+import { FeedbackBanner } from '../components/ui/FeedbackBanner';
+import { ConfirmModal as ConfirmModalDialog } from '../components/ui/ConfirmModal';
 import {
   Calendar,
   Clock,
@@ -23,12 +25,15 @@ import {
   AlertCircle,
   PlayCircle,
   ListTodo,
+  X,
 } from 'lucide-react';
 import { studyPlanService } from '../services/studyPlanService';
 
 export const StudentStudyPlanPage = () => {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [success, setSuccess] = useState(null);
+  const [confirmModal, setConfirmModal] = useState(null);
   const [data, setData] = useState(null);
 
   // Task View Filter Tab: 'TODAY', 'UPCOMING', 'COMPLETED', 'ALL'
@@ -110,19 +115,29 @@ export const StudentStudyPlanPage = () => {
     }
   };
 
-  const handleDeleteTask = async (taskId) => {
-    if (!window.confirm('Delete this task?')) return;
-    try {
-      await studyPlanService.deleteTask(taskId);
-      fetchDashboard();
-    } catch (err) {
-      console.error('Failed to delete task:', err);
-    }
+  const handleDeleteTask = (taskId) => {
+    setConfirmModal({
+      message: 'Delete this task?',
+      onConfirm: async () => {
+        setConfirmModal(null);
+        try {
+          await studyPlanService.deleteTask(taskId);
+          setSuccess('Task deleted successfully.');
+          fetchDashboard();
+        } catch (err) {
+          console.error('Failed to delete task:', err);
+          setError('Failed to delete task.');
+        }
+      }
+    });
   };
 
   const handleCreateTask = async (e) => {
     e.preventDefault();
-    if (!taskTitle.trim()) return alert('Please enter a task title.');
+    if (!taskTitle.trim()) {
+      setError('Please enter a task title.');
+      return;
+    }
     try {
       setIsSubmitting(true);
       await studyPlanService.createTask({
@@ -136,9 +151,10 @@ export const StudentStudyPlanPage = () => {
       });
       setShowAddTaskModal(false);
       setTaskTitle('');
+      setSuccess('Task created successfully!');
       fetchDashboard();
     } catch (err) {
-      alert('Failed to create task.');
+      setError('Failed to create task.');
     } finally {
       setIsSubmitting(false);
     }
@@ -147,7 +163,8 @@ export const StudentStudyPlanPage = () => {
   const handleCreateGoal = async (e) => {
     e.preventDefault();
     if (!goalTitle.trim() || !goalCourseId || !goalTargetDate) {
-      return alert('Goal title, course, and target date are required.');
+      setError('Goal title, course, and target date are required.');
+      return;
     }
     try {
       setIsSubmitting(true);
@@ -161,9 +178,10 @@ export const StudentStudyPlanPage = () => {
       });
       setShowAddGoalModal(false);
       setGoalTitle('');
+      setSuccess('Goal created successfully!');
       fetchDashboard();
     } catch (err) {
-      alert('Failed to create goal.');
+      setError('Failed to create goal.');
     } finally {
       setIsSubmitting(false);
     }
@@ -172,7 +190,8 @@ export const StudentStudyPlanPage = () => {
   const handleGenerateAIRoadmap = async (e) => {
     e.preventDefault();
     if (!roadmapTitle.trim() || !roadmapCourseId || !roadmapTargetDate) {
-      return alert('Roadmap title, course, and target date are required.');
+      setError('Roadmap title, course, and target date are required.');
+      return;
     }
     try {
       setIsSubmitting(true);
@@ -185,9 +204,10 @@ export const StudentStudyPlanPage = () => {
       });
       setShowAIRoadmapModal(false);
       setRoadmapTitle('');
+      setSuccess('AI Roadmap generated successfully!');
       fetchDashboard();
     } catch (err) {
-      alert('Failed to generate AI roadmap.');
+      setError('Failed to generate AI roadmap.');
     } finally {
       setIsSubmitting(false);
     }
@@ -198,11 +218,11 @@ export const StudentStudyPlanPage = () => {
       setIsSubmitting(true);
       const res = await studyPlanService.convertRoadmapToTasks(roadmapId);
       if (res.success) {
-        alert(`Successfully created ${res.data.convertedCount} study tasks from AI Roadmap!`);
+        setSuccess(`Successfully created ${res.data.convertedCount} study tasks from AI Roadmap!`);
         fetchDashboard();
       }
     } catch (err) {
-      alert('Failed to convert roadmap to tasks.');
+      setError('Failed to convert roadmap to tasks.');
     } finally {
       setIsSubmitting(false);
     }
@@ -211,7 +231,8 @@ export const StudentStudyPlanPage = () => {
   const handleCreateRevisionPlan = async (e) => {
     e.preventDefault();
     if (!revisionTitle.trim() || !revisionCourseId || !revisionExamDate) {
-      return alert('Revision title, course, and exam date are required.');
+      setError('Revision title, course, and exam date are required.');
+      return;
     }
     try {
       setIsSubmitting(true);
@@ -224,9 +245,10 @@ export const StudentStudyPlanPage = () => {
       });
       setShowRevisionPlanModal(false);
       setRevisionTitle('');
+      setSuccess('Exam revision plan created successfully!');
       fetchDashboard();
     } catch (err) {
-      alert('Failed to create exam revision plan.');
+      setError('Failed to create exam revision plan.');
     } finally {
       setIsSubmitting(false);
     }
@@ -281,6 +303,14 @@ export const StudentStudyPlanPage = () => {
   return (
     <AppShell title="Study Plan">
       <div className="space-y-8 max-w-6xl mx-auto pb-16">
+        <ConfirmModalDialog 
+          isOpen={!!confirmModal} 
+          message={confirmModal?.message}
+          onConfirm={confirmModal?.onConfirm}
+          onCancel={() => setConfirmModal(null)}
+          isDestructive={true}
+        />
+
         {/* Header & Actions */}
         <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 border-b border-[var(--border)] pb-5">
           <div>
@@ -292,7 +322,12 @@ export const StudentStudyPlanPage = () => {
               Personal student productivity roadmap, goal tracker & exam revision planner.
             </p>
           </div>
+        </div>
 
+        <FeedbackBanner type="success" message={success} onClose={() => setSuccess(null)} />
+        <FeedbackBanner type="error" message={error} onClose={() => setError(null)} />
+
+        <div className="flex flex-col md:flex-row md:items-center md:justify-end gap-2 border-b border-[var(--border)] pb-5">
           <div className="flex flex-wrap items-center gap-2">
             <Button variant="primary" size="sm" icon={Plus} onClick={() => setShowAddTaskModal(true)}>
               Add Task

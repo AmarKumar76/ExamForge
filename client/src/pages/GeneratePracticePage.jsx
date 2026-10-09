@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { AppShell } from '../components/layout/AppShell';
 import { Card } from '../components/ui/Card';
 import { Button } from '../components/ui/Button';
-import { Sparkles, BrainCircuit, ArrowRight, RefreshCw } from 'lucide-react';
+import { Sparkles, BrainCircuit, ArrowRight, RefreshCw, AlertCircle } from 'lucide-react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { examService } from '../services/examService';
 
@@ -17,6 +17,7 @@ export const GeneratePracticePage = () => {
   
   const [isLoading, setIsLoading] = useState(true);
   const [isGenerating, setIsGenerating] = useState(false);
+  const [error, setError] = useState(null);
 
   useEffect(() => {
     const init = async () => {
@@ -53,7 +54,10 @@ export const GeneratePracticePage = () => {
 
   const handleGenerate = async (e) => {
     e.preventDefault();
-    if (!topic || !courseId) return alert('Select a valid topic from your weak areas.');
+    if (!topic || !courseId) {
+      setError('Select a valid topic from your weak areas.');
+      return;
+    }
     
     try {
       setIsGenerating(true);
@@ -63,7 +67,7 @@ export const GeneratePracticePage = () => {
       }
     } catch (err) {
       console.error(err);
-      alert('Failed to generate practice assessment.');
+      setError('Failed to generate practice assessment.');
     } finally {
       setIsGenerating(false);
     }
@@ -104,6 +108,16 @@ export const GeneratePracticePage = () => {
           <h1 className="text-2xl font-bold text-[var(--text-primary)]">Create Practice Assessment</h1>
           <p className="text-xs text-[var(--text-secondary)] mt-0.5">Practice based on your learning gaps.</p>
         </div>
+
+        {error && (
+          <div className="p-3.5 bg-red-500/10 border border-red-500/20 text-red-600 dark:text-red-400 rounded-xl text-xs font-semibold flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <AlertCircle className="w-4 h-4" />
+              <span>{error}</span>
+            </div>
+            <button onClick={() => setError(null)} className="cursor-pointer">✕</button>
+          </div>
+        )}
 
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
           <div className="lg:col-span-7">

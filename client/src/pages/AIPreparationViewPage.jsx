@@ -102,7 +102,10 @@ export const AIPreparationViewPage = () => {
   const handleGeneratePracticeAssessment = async (e) => {
     e.preventDefault();
     const courseId = data?.latestPerformance?.courseId || data?.enrolledCourses?.[0]?._id;
-    if (!practiceTopic || !courseId) return alert('Please select a valid topic.');
+    if (!practiceTopic || !courseId) {
+      setError('Please select a valid topic.');
+      return;
+    }
 
     try {
       setIsGeneratingPractice(true);
@@ -113,7 +116,7 @@ export const AIPreparationViewPage = () => {
       }
     } catch (err) {
       console.error('Practice generation error:', err);
-      alert('Failed to generate AI practice assessment.');
+      setError('Failed to generate AI practice assessment.');
     } finally {
       setIsGeneratingPractice(false);
     }

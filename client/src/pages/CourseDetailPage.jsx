@@ -261,7 +261,11 @@ export const CourseDetailPage = () => {
             }`}
           >
             <div className="flex items-center gap-2">
-              <CheckCircle2 className="w-4 h-4 shrink-0" />
+              {actionMessage.type === 'success' ? (
+                <CheckCircle2 className="w-4 h-4 shrink-0" />
+              ) : (
+                <AlertCircle className="w-4 h-4 shrink-0" />
+              )}
               <span>{actionMessage.text}</span>
             </div>
             <button onClick={() => setActionMessage(null)} className="cursor-pointer">
