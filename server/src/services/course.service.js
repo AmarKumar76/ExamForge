@@ -277,9 +277,11 @@ class CourseService {
       .map((item) => this._normalizeId(item))
       .filter(Boolean);
 
-    if (studentIds.length > 0 && (action === 'add' || action === 'set')) {
-      const targetStudents = await User.find({ _id: { $in: studentIds } });
-      if (targetStudents.length !== studentIds.length) {
+    const uniqueStudentIds = [...new Set(studentIds)];
+
+    if (uniqueStudentIds.length > 0 && (action === 'add' || action === 'set')) {
+      const targetStudents = await User.find({ _id: { $in: uniqueStudentIds } });
+      if (targetStudents.length !== uniqueStudentIds.length) {
         const error = new Error('One or more specified student user IDs do not exist.');
         error.statusCode = 400;
         error.code = 'INVALID_STUDENT_ID';
@@ -297,19 +299,32 @@ class CourseService {
     }
 
     if (action === 'add') {
-      studentIds.forEach((studId) => {
-        if (!course.studentIds.some((id) => id.toString() === studId)) {
+      const existingIds = new Set((course.studentIds || []).map((id) => id.toString()));
+      uniqueStudentIds.forEach((studId) => {
+        if (!existingIds.has(studId)) {
           course.studentIds.push(studId);
+          existingIds.add(studId);
         }
       });
     } else if (action === 'remove') {
-      course.studentIds = course.studentIds.filter(
-        (id) => !studentIds.some((studId) => studId === id.toString())
+      const removeSet = new Set(uniqueStudentIds);
+      course.studentIds = (course.studentIds || []).filter(
+        (id) => !removeSet.has(id.toString())
       );
     } else if (action === 'set') {
-      const uniqueIds = [...new Set(studentIds)];
-      course.studentIds = uniqueIds;
+      course.studentIds = uniqueStudentIds;
     }
+
+    const finalIds = [];
+    const seen = new Set();
+    for (const id of course.studentIds) {
+      const strId = id.toString();
+      if (!seen.has(strId)) {
+        seen.add(strId);
+        finalIds.push(id);
+      }
+    }
+    course.studentIds = finalIds;
 
     await course.save();
     return course.populate('studentIds', 'name email role avatar');

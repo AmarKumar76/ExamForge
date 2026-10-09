@@ -1,4 +1,4 @@
-﻿/**
+/**
  * Phase 3 Regression Tests — Enrollment Deduplication & Instructor Analytics Student Count
  *
  * These tests cover the two bugs fixed in Phase 2:
@@ -28,13 +28,16 @@ const courseService = require('../services/course.service');
 // Unique fixture namespace
 const FIXTURE_EMAIL_RE = /enrolltest\.dev$/;
 const INST_CODE = 'ENROLLTEST-INST-001';
+const INST_CODE_OTHER = 'ENROLLTEST-INST-002';
 const COURSE_CODE_A = 'ENROLLTEST-CRS-A';
 const COURSE_CODE_B = 'ENROLLTEST-CRS-B';
 
 let testInstitution;
+let otherInstitution;
 let instructorUser;
 let studentUserA;
 let studentUserB;
+let crossInstStudent;
 let courseA;
 let courseB;
 
@@ -72,6 +75,19 @@ beforeAll(async () => {
     { upsert: true, new: true }
   );
 
+  otherInstitution = await Institution.findOneAndUpdate(
+    { code: INST_CODE_OTHER },
+    {
+      $setOnInsert: {
+        name: 'Other Enrollment Test Institution',
+        code: INST_CODE_OTHER,
+        departments: ['Computer Science'],
+        status: 'ACTIVE',
+      },
+    },
+    { upsert: true, new: true }
+  );
+
   instructorUser = await createUser({
     name: 'Fixture Instructor',
     email: `instructor@enrolltest.dev`,
@@ -96,6 +112,15 @@ beforeAll(async () => {
     institutionId: testInstitution._id,
     enrollmentNumber: 'ENROLLTEST-EN-B',
     rollNumber: 'ENROLLTEST-RN-B',
+  });
+
+  crossInstStudent = await createUser({
+    name: 'Fixture Cross Student',
+    email: `crossstudent@enrolltest.dev`,
+    role: 'STUDENT',
+    institutionId: otherInstitution._id,
+    enrollmentNumber: 'ENROLLTEST-EN-CROSS',
+    rollNumber: 'ENROLLTEST-RN-CROSS',
   });
 
   courseA = await Course.create({
@@ -123,7 +148,7 @@ afterAll(async () => {
   if (mongoose.connection.readyState === 1) {
     await User.deleteMany({ email: FIXTURE_EMAIL_RE });
     await Course.deleteMany({ code: { $in: [COURSE_CODE_A, COURSE_CODE_B] } });
-    await Institution.deleteMany({ code: INST_CODE });
+    await Institution.deleteMany({ code: { $in: [INST_CODE, INST_CODE_OTHER] } });
   }
   await disconnectDB();
 });
@@ -244,5 +269,44 @@ describe('getInstructorAnalytics — totalStudentsCount unique deduplication', (
   test('empty studentIds arrays yield count 0', async () => {
     const courses = await Course.find({ _id: { $in: [courseA._id, courseB._id] } });
     expect(computeUniqueStudentCount(courses)).toBe(0);
+  });
+});
+
+// ---------------------------------------------------------------------------
+describe('courseService.manageStudents — targeted regression tests', () => {
+  test('successfully assigns valid student IDs to course', async () => {
+    const updated = await courseService.manageStudents(
+      courseA._id.toString(),
+      [studentUserA._id.toString(), studentUserB._id.toString()],
+      'set'
+    );
+    expect(updated.studentIds).toHaveLength(2);
+  });
+
+  test('rejects non-existent student user IDs with INVALID_STUDENT_ID error', async () => {
+    const fakeId = new mongoose.Types.ObjectId().toString();
+    await expect(
+      courseService.manageStudents(courseA._id.toString(), [fakeId], 'add')
+    ).rejects.toThrow('One or more specified student user IDs do not exist.');
+  });
+
+  test('deduplicates student IDs when input array contains repeated IDs', async () => {
+    const updated = await courseService.manageStudents(
+      courseA._id.toString(),
+      [studentUserA._id.toString(), studentUserA._id.toString()],
+      'set'
+    );
+    expect(updated.studentIds).toHaveLength(1);
+    expect(updated.studentIds[0]._id.toString()).toBe(studentUserA._id.toString());
+  });
+
+  test('prevents cross-institution student assignment with CROSS_INSTITUTION_ENROLLMENT_FORBIDDEN error', async () => {
+    await expect(
+      courseService.manageStudents(
+        courseA._id.toString(),
+        [crossInstStudent._id.toString()],
+        'add'
+      )
+    ).rejects.toThrow('Student and course must belong to the same institution.');
   });
 });
